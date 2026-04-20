@@ -161,11 +161,6 @@ def render_login_page() -> None:
     _inject_styles()
     st.markdown('<div class="fc-shell">', unsafe_allow_html=True)
 
-    if LOGO_FULL.exists():
-        st.markdown('<div class="fc-logo-wrap">', unsafe_allow_html=True)
-        st.image(str(LOGO_FULL), use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="fc-card">', unsafe_allow_html=True)
 
     st.markdown('<div class="fc-badge">Plataforma de teleatendimento</div>', unsafe_allow_html=True)
@@ -175,9 +170,21 @@ def render_login_page() -> None:
         unsafe_allow_html=True,
     )
 
-    tab_login, tab_register = st.tabs(["Login", "Cadastro"])
+    auth_mode = st.segmented_control(
+        "Acesso",
+        ["Login", "Cadastro"],
+        key="auth_mode",
+        selection_mode="single",
+    )
+    if not auth_mode:
+        auth_mode = "Login"
+        st.session_state.auth_mode = auth_mode
 
-    with tab_login:
+    highlight = st.session_state.pop("auth_highlight", "")
+    if highlight:
+        st.info(highlight)
+
+    if auth_mode == "Login":
         email = st.text_input("Email", key="login_email")
         senha = st.text_input("Senha", type="password", key="login_password")
 
@@ -189,7 +196,12 @@ def render_login_page() -> None:
                 st.session_state.user = user
                 st.rerun()
 
-    with tab_register:
+        st.caption("Nao tem cadastro ainda?")
+        if st.button("Criar conta", key="switch_to_register", use_container_width=True):
+            st.session_state.auth_mode = "Cadastro"
+            st.session_state.public_view = "auth"
+            st.rerun()
+    else:
         nome = st.text_input("Nome completo", key="register_name")
         email = st.text_input("Email", key="register_email")
         senha = st.text_input("Senha", type="password", key="register_password")
@@ -216,5 +228,11 @@ def render_login_page() -> None:
                     st.error(str(exc))
                 else:
                     st.success("Conta criada com sucesso. Agora voce ja pode entrar.")
+
+        st.caption("Ja possui conta?")
+        if st.button("Voltar para login", key="switch_to_login", use_container_width=True):
+            st.session_state.auth_mode = "Login"
+            st.session_state.public_view = "auth"
+            st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)

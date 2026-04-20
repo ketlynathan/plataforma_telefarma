@@ -42,6 +42,27 @@ def apply_global_styles() -> None:
             padding-left: 1.25rem;
             padding-right: 1.25rem;
         }
+        .fc-top-action {
+            padding-top: 0.35rem;
+        }
+        div[role="radiogroup"] {
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.35rem;
+        }
+        div[role="radiogroup"] label {
+            background: color-mix(in srgb, var(--secondary-background-color) 82%, transparent);
+            border: 1px solid color-mix(in srgb, var(--text-color) 10%, transparent);
+            border-radius: 999px;
+            padding: 0.2rem 0.95rem;
+            min-height: 42px;
+            display: flex !important;
+            align-items: center;
+        }
+        div[role="radiogroup"] label:has(input:checked) {
+            background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+            border-color: color-mix(in srgb, var(--primary-color) 34%, transparent);
+        }
         .stButton > button,
         .stSelectbox,
         .stDateInput,
@@ -56,13 +77,8 @@ def apply_global_styles() -> None:
                 padding-right: 0.85rem;
                 max-width: 100%;
             }
-            [data-testid="stSidebar"] {
-                border-right: 0;
-                min-width: 78vw !important;
-                max-width: 78vw !important;
-            }
-            [data-testid="stSidebarCollapsedControl"] {
-                top: 0.75rem;
+            .fc-top-action {
+                padding-top: 0;
             }
             .stMetric {
                 padding: 0.8rem;
@@ -77,6 +93,18 @@ def apply_global_styles() -> None:
             .stTextArea textarea {
                 min-height: 120px;
             }
+            div[role="radiogroup"] {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.45rem;
+                width: 100%;
+            }
+            div[role="radiogroup"] label {
+                width: 100%;
+                justify-content: center;
+                padding: 0.25rem 0.75rem;
+                min-height: 44px;
+            }
             h1 {
                 font-size: 1.5rem !important;
                 line-height: 1.2;
@@ -89,13 +117,12 @@ def apply_global_styles() -> None:
             }
         }
         @media (max-width: 480px) {
-            [data-testid="stSidebar"] {
-                min-width: 84vw !important;
-                max-width: 84vw !important;
-            }
             [data-testid="stMainBlockContainer"] {
                 padding-left: 0.7rem;
                 padding-right: 0.7rem;
+            }
+            div[role="radiogroup"] {
+                grid-template-columns: 1fr;
             }
             .stButton > button {
                 min-height: 2.9rem;

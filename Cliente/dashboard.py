@@ -1,30 +1,32 @@
-from datetime import date
-
 import streamlit as st
 
 from database.db import get_consultas_by_email
 
 
 def render_cliente_dashboard(user: dict) -> None:
-    st.title("Dashboard do cliente")
-    st.caption(f"Bem-vindo, {user['nome']}. Aqui esta um resumo rapido da sua jornada.")
+    st.title("Bem-vindo")
+    st.subheader(user["nome"])
 
     consultas = get_consultas_by_email(user["email"])
-    consultas_hoje = consultas[consultas["data"] == str(date.today())]
     consultas_agendadas = consultas[consultas["status"] == "Agendada"]
+    consultas_realizadas = consultas[consultas["status"] != "Agendada"]
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Consultas totais", len(consultas))
-    col2.metric("Consultas agendadas", len(consultas_agendadas))
-    col3.metric("Consultas hoje", len(consultas_hoje))
+    col1.metric("Proximas Consultas", len(consultas_agendadas), "Agendadas para voce")
+    col2.metric("Historico", len(consultas_realizadas), "Consultas realizadas")
+    col3.metric("Agendar", "Nova Consulta", "Agende uma nova teleconsulta")
 
-    st.subheader("Proximas consultas")
-    if consultas.empty:
-        st.info("Voce ainda nao possui consultas agendadas.")
+    st.subheader("Proximas Consultas")
+    if consultas_agendadas.empty:
+        st.info("Voce nao tem consultas agendadas")
+        if st.button("Agendar Agora", use_container_width=True):
+            st.session_state.cliente_page = "Agendar consulta"
+            st.session_state.cliente_page_radio = "Agendar consulta"
+            st.rerun()
         return
 
     st.dataframe(
-        consultas.sort_values(by=["data", "hora"]),
+        consultas_agendadas.sort_values(by=["data", "hora"]),
         use_container_width=True,
         hide_index=True,
     )
