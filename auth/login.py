@@ -83,13 +83,25 @@ def _inject_styles() -> None:
         .stTextArea textarea {{
             border-radius: 12px;
         }}
-        .stButton > button {{
+        .stButton > button[kind="primary"] {{
             width: 100%;
             border-radius: 12px;
             border: 0;
-            background: color-mix(in srgb, var(--primary-color) 92%, black 8%);
-            color: var(--background-color);
+            background: linear-gradient(180deg, #10b981 0%, #0f766e 100%);
+            color: #ecfdf5;
             font-weight: 700;
+            min-height: 2.8rem;
+            box-shadow: 0 10px 24px rgba(15, 118, 110, 0.2);
+        }}
+        .stButton > button[kind="primary"]:hover {{
+            background: linear-gradient(180deg, #34d399 0%, #0f766e 100%);
+        }}
+        .stButton > button[kind="secondary"] {{
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.24);
+            background: color-mix(in srgb, var(--background-color) 92%, transparent);
+            color: var(--text-color);
             min-height: 2.8rem;
         }}
         @media (max-width: 768px) {{
@@ -188,7 +200,7 @@ def render_login_page() -> None:
         email = st.text_input("Email", key="login_email")
         senha = st.text_input("Senha", type="password", key="login_password")
 
-        if st.button("Entrar", key="login_submit"):
+        if st.button("Entrar", key="login_submit", type="primary"):
             user = authenticate_user(email, senha)
             if user is None:
                 st.error("Email ou senha invalidos.")
@@ -197,7 +209,7 @@ def render_login_page() -> None:
                 st.rerun()
 
         st.caption("Nao tem cadastro ainda?")
-        if st.button("Criar conta", key="switch_to_register", use_container_width=True):
+        if st.button("Criar conta", key="switch_to_register", use_container_width=True, type="secondary"):
             st.session_state.auth_mode = "Cadastro"
             st.session_state.public_view = "auth"
             st.rerun()
@@ -208,7 +220,7 @@ def render_login_page() -> None:
         telefone = st.text_input("Telefone", key="register_phone")
         tipo = st.selectbox("Perfil", ["cliente", "farmaceutico"], key="register_type")
 
-        if st.button("Criar conta", key="register_submit"):
+        if st.button("Criar conta", key="register_submit", type="primary"):
             if not nome or not email or not senha:
                 st.warning("Preencha nome, email e senha.")
             elif user_exists(email):
@@ -230,7 +242,7 @@ def render_login_page() -> None:
                     st.success("Conta criada com sucesso. Agora voce ja pode entrar.")
 
         st.caption("Ja possui conta?")
-        if st.button("Voltar para login", key="switch_to_login", use_container_width=True):
+        if st.button("Voltar para login", key="switch_to_login", use_container_width=True, type="secondary"):
             st.session_state.auth_mode = "Login"
             st.session_state.public_view = "auth"
             st.rerun()
