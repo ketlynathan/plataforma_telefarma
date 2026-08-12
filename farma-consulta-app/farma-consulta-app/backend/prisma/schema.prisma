@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Equivalente a USER_COLUMNS em config.py
+model User {
+  id                String   @id @default(uuid())
+  nome              String
+  email             String   @unique
+  senha             String
+  tipo              String   // "cliente" | "farmaceutico"
+  telefone          String?
+  cpf               String?
+  dataNascimento    String?  @map("data_nascimento")
+  cep               String?
+  endereco          String?
+  cidade            String?
+  estado            String?
+  doencasCronicas   String?  @map("doencas_cronicas")
+  alergias          String?
+  medicamentosUso   String?  @map("medicamentos_uso")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("usuarios")
+}
+
+// Equivalente a CONSULTA_COLUMNS em config.py
+model Consulta {
+  id            String   @id @default(uuid())
+  pacienteNome  String   @map("paciente_nome")
+  pacienteEmail String   @map("paciente_email")
+  data          DateTime @db.Date
+  hora          String
+  status        String   @default("Agendada")
+  observacoes   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("consultas")
+  @@index([pacienteEmail])
+}
