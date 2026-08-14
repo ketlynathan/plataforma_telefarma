@@ -5,28 +5,32 @@ services:
     dockerfilePath: ./farma-consulta-app/farma-consulta-app/backend/Dockerfile
     dockerContext: ./farma-consulta-app/farma-consulta-app/backend
     plan: free
-    healthCheckPath: /api
+    healthCheckPath: /api/health
+
     envVars:
       - key: DATABASE_URL
         sync: false
+
       - key: JWT_SECRET
         generateValue: true
+
       - key: JWT_EXPIRES_IN
         value: 7d
-      - key: PORT
-        value: 3001
+
       - key: FRONTEND_URL
-        value: https://farma-consulta-frontend.onrender.com
+        value: https://farma-consulta-frontend-wxvx.onrender.com
 
   - type: web
     name: farma-consulta-frontend
     runtime: static
-    rootDir: farma-consulta-app/farma-consulta-app/frontend
+    rootDir: ./farma-consulta-app/farma-consulta-app/frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
+
     envVars:
       - key: VITE_API_URL
-        value: https://farma-consulta-backend.onrender.com/api
+        value: https://farma-consulta-backend-wxvx.onrender.com/api
+
     routes:
       - type: rewrite
         source: /*
