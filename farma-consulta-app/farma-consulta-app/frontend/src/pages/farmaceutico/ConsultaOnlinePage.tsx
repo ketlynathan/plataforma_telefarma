@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { gerarSala } from '../../utils/salaVideo';
+import { gerarSala, gerarTokenSala } from '../../utils/salaVideo';
 
 export function ConsultaOnlinePage() {
   const { user } = useAuth();
-  const [roomName, setRoomName] = useState(user ? `${user.nome}-sala` : 'consulta-online');
-  const [entrou, setEntrou] = useState(false);
+  const [token] = useState(gerarTokenSala);
+  const [roomName, setRoomName] = useState(
+    user ? `${user.nome}-${token}` : `consulta-${token}`
+  );
 
   const roomUrl = gerarSala(roomName);
+
+  const handleEntrar = () => {
+    window.open(roomUrl, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div>
@@ -21,15 +27,9 @@ export function ConsultaOnlinePage() {
 
       <p style={{ color: 'var(--primary-color)', fontSize: '0.9rem' }}>Sala gerada: {roomUrl}</p>
 
-      <button className="fc-button primary" style={{ width: 'auto', padding: '0.6rem 1.2rem' }} onClick={() => setEntrou(true)}>
-        Entrar na consulta
+      <button className="fc-button primary" style={{ width: 'auto', padding: '0.6rem 1.2rem' }} onClick={handleEntrar}>
+        Entrar na consulta (abre em nova aba)
       </button>
-
-      {entrou && (
-        <div style={{ marginTop: '1rem' }}>
-          <iframe src={roomUrl} width="100%" height={600} style={{ border: 0, borderRadius: 12 }} allow="camera; microphone; fullscreen" />
-        </div>
-      )}
     </div>
   );
 }
