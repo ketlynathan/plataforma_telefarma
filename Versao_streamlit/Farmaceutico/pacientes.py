@@ -1,6 +1,6 @@
 import streamlit as st
 
-from database.db import list_unique_patients, load_consultas
+from Versao_streamlit.database.db import list_unique_patients, load_consultas
 
 
 def render_pacientes_page() -> None:

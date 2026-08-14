@@ -8,20 +8,20 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from auth.login import render_login_page
-from Cliente.agendamento import render_agendamento_page
-from Cliente.consultas import render_consultas_page
-from Cliente.dashboard import render_cliente_dashboard
-from Cliente.perfil import render_perfil_page
-from components.sidebar import render_user_panel
-from components.theme import apply_global_styles
-from config import APP_ICON, APP_TITLE
-from database.db import init_db
-from Farmaceutico.agenda import render_agenda_page
-from Farmaceutico.consulta_online import render_consulta_online_page
-from Farmaceutico.dashboard import render_farmaceutico_dashboard
-from Farmaceutico.pacientes import render_pacientes_page
-from home import render_public_home
+from Versao_streamlit.auth.login import render_login_page
+from Versao_streamlit.Cliente.agendamento import render_agendamento_page
+from Versao_streamlit.Cliente.consultas import render_consultas_page
+from Versao_streamlit.Cliente.dashboard import render_cliente_dashboard
+from Versao_streamlit.Cliente.perfil import render_perfil_page
+from Versao_streamlit.components.sidebar import render_user_panel
+from Versao_streamlit.components.theme import apply_global_styles
+from Versao_streamlit.config import APP_ICON, APP_TITLE
+from Versao_streamlit.database.db import init_db
+from Versao_streamlit.Farmaceutico.agenda import render_agenda_page
+from Versao_streamlit.Farmaceutico.consulta_online import render_consulta_online_page
+from Versao_streamlit.Farmaceutico.dashboard import render_farmaceutico_dashboard
+from Versao_streamlit.Farmaceutico.pacientes import render_pacientes_page
+from Versao_streamlit.home import render_public_home
 
 
 st.set_page_config(

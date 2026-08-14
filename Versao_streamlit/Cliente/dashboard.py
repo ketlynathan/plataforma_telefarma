@@ -1,6 +1,6 @@
 import streamlit as st
 
-from database.db import get_consultas_by_email
+from Versao_streamlit.database.db import get_consultas_by_email
 
 
 def render_cliente_dashboard(user: dict) -> None:

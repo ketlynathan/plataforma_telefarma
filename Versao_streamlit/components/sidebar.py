@@ -1,6 +1,6 @@
 import streamlit as st
 
-from config import LOGO_SMALL
+from Versao_streamlit.config import LOGO_SMALL
 
 
 def render_user_panel(user: dict) -> None:

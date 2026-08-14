@@ -1,6 +1,6 @@
 import streamlit as st
 
-from components.video_call import gerar_sala, video_call
+from Versao_streamlit.components.video_call import gerar_sala, video_call
 
 
 def render_consulta_online_page(user: dict | None = None) -> None:

@@ -2,7 +2,7 @@ from datetime import date
 
 import streamlit as st
 
-from database.db import DatabaseWriteError, create_consulta
+from Versao_streamlit.database.db import DatabaseWriteError, create_consulta
 
 
 def render_agendamento_page(user: dict) -> None:

@@ -1,6 +1,6 @@
 import streamlit as st
 
-from config import LOGO_FULL
+from Versao_streamlit.config import LOGO_FULL
 
 
 def _inject_home_styles() -> None:

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pandas as pd
 
-from config import CONSULTA_COLUMNS, CONSULTAS_FILE, USER_COLUMNS, USERS_FILE
+from Versao_streamlit.config import CONSULTA_COLUMNS, CONSULTAS_FILE, USER_COLUMNS, USERS_FILE
 
 
 class DatabaseWriteError(RuntimeError):

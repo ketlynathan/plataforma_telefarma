@@ -1,6 +1,6 @@
 import streamlit as st
 
-from database.db import DatabaseWriteError, update_user
+from Versao_streamlit.database.db import DatabaseWriteError, update_user
 
 
 def render_perfil_page(user: dict) -> None:

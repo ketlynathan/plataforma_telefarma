@@ -1,7 +1,7 @@
 import streamlit as st
 
-from config import APP_TITLE, LOGO_FULL
-from database.db import DatabaseWriteError, authenticate_user, save_user, user_exists
+from Versao_streamlit.config import APP_TITLE, LOGO_FULL
+from Versao_streamlit.database.db import DatabaseWriteError, authenticate_user, save_user, user_exists
 
 
 def _inject_styles() -> None:

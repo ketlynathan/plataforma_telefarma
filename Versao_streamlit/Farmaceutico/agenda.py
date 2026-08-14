@@ -1,6 +1,6 @@
 import streamlit as st
 
-from database.db import get_upcoming_consultas
+from Versao_streamlit.database.db import get_upcoming_consultas
 
 
 def render_agenda_page() -> None:
