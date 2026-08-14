@@ -22,8 +22,10 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  const port = config.get<number>('PORT') ?? 3001;
-  await app.listen(port);
-  console.log(`Farma Consulta API rodando em http://localhost:${port}/api`);
+  const port = process.env.PORT || 3001;
+
+  await app.listen(port, '0.0.0.0');
+
+  console.log(`Farma Consulta API rodando na porta ${port}`);
 }
 bootstrap();
