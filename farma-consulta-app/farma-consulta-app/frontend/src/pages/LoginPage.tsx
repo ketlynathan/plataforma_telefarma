@@ -90,6 +90,15 @@ export function LoginPage() {
             <button className="fc-button primary" type="submit" disabled={submitting}>
               Entrar
             </button>
+            <div style={{ marginTop: 12, textAlign: 'center' }}>
+              <a
+                href="/recuperar-senha"
+                className="fc-link"
+                style={{ fontSize: 14, color: 'var(--primary-color)', textDecoration: 'none' }}
+              >
+                Esqueceu sua senha?
+              </a>
+            </div>
           </form>
         ) : (
           <form onSubmit={handleRegister}>

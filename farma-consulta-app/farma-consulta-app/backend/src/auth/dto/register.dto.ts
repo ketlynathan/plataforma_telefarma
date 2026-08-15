@@ -12,8 +12,10 @@ export class RegisterDto {
   @MinLength(6)
   senha: string;
 
-  @IsIn(['cliente', 'farmaceutico'])
-  tipo: 'cliente' | 'farmaceutico';
+  // Cadastro público restrito a clientes. Farmacêuticos só entram por convite.
+  @IsOptional()
+  @IsIn(['cliente'])
+  tipo?: 'cliente';
 
   @IsOptional()
   @IsString()

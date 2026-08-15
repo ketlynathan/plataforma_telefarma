@@ -1,33 +1,83 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api/client';
-import { Consulta } from '../../types';
+import { consultasApi, messagesApi } from '../../api/endpoints';
+import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
+import { Mensagens } from '../../components/Mensagens';
+
+function isoToBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
 
 export function ConsultasPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [room, setRoom] = useState<{ roomUrl: string; status: string } | null>(null);
+  const [naoLidas, setNaoLidas] = useState(0);
+
+  const carrega = async () => {
+    setLoading(true);
+    try {
+      const { data } = await consultasApi.me();
+      setConsultas(data);
+    } catch {
+      // erro silencioso
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api.get<Consulta[]>('/consultas/me').then(({ data }) => {
-      setConsultas(data);
-      setLoading(false);
-    });
+    carrega();
+    const interval = setInterval(() => {
+      messagesApi.unreadCount().then(({ data }) => setNaoLidas(data.count ?? 0)).catch(() => {});
+    }, 15_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const entraNaSala = async (id: string) => {
+    setAberta(id);
+    try {
+      const { data } = await consultasApi.room(id);
+      setRoom({ roomUrl: data.roomUrl, status: data.status });
+    } catch (err: any) {
+      setRoom({ roomUrl: '', status: err?.response?.data?.message ?? 'Erro ao abrir sala.' });
+    }
+  };
+
+  const fechaSala = () => {
+    setAberta(null);
+    setRoom(null);
+  };
+
+  const mudaStatus = async (id: string, status: string) => {
+    try {
+      await consultasApi.updateStatus(id, status);
+      await carrega();
+    } catch {
+      // erro silencioso
+    }
+  };
 
   return (
     <div>
-      <h1>Minhas consultas</h1>
+      <h1>Minhas consultas {naoLidas > 0 && <span className="fc-badge">{naoLidas} nova(s)</span>}</h1>
+
       {loading ? (
         <p>Carregando...</p>
       ) : consultas.length === 0 ? (
-        <div className="fc-alert info">Nenhuma consulta encontrada para este usuario.</div>
+        <div className="fc-alert info">Nenhuma consulta encontrada para este usuário.</div>
       ) : (
         <table className="fc-table">
           <thead>
             <tr>
+              <th>Farmacêutico(a)</th>
               <th>Data</th>
               <th>Hora</th>
               <th>Status</th>
-              <th>Observacoes</th>
+              <th>Observações</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -35,14 +85,55 @@ export function ConsultasPage() {
               .sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
               .map((c) => (
                 <tr key={c.id}>
-                  <td>{c.data.slice(0, 10)}</td>
+                  <td>{c.farmaceutico?.nome ?? '—'}</td>
+                  <td>{isoToBR(c.data)}</td>
                   <td>{c.hora}</td>
-                  <td>{c.status}</td>
+                  <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                   <td>{c.observacoes}</td>
+                  <td>
+                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
+                      <button className="fc-button primary" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => entraNaSala(c.id)}>
+                        Entrar na consulta
+                      </button>
+                    )}
+                    {(c.status === 'AGENDADA' || c.status === 'CONFIRMADA') && (
+                      <button
+                        className="fc-button danger"
+                        style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }}
+                        onClick={() => mudaStatus(c.id, 'CANCELADA')}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
           </tbody>
         </table>
+      )}
+
+      {aberta && (
+        <div className="fc-modal" style={{ display: 'block' }}>
+          <div className="fc-modal-content">
+            <h2>Consulta em andamento</h2>
+            {room?.roomUrl ? (
+              <>
+                <iframe
+                  src={room.roomUrl}
+                  allow="camera; microphone; fullscreen; display-capture; autoplay"
+                  style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }}
+                  title="Sala de consulta"
+                />
+                <Mensagens consultaId={aberta} />
+              </>
+            ) : (
+              <div className="fc-alert error">{room?.status ?? 'Erro ao carregar sala.'}</div>
+            )}
+            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>
+              Fechar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

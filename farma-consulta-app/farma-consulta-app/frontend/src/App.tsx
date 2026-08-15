@@ -12,6 +12,9 @@ import { FarmaceuticoDashboardPage } from './pages/farmaceutico/DashboardPage';
 import { AgendaPage } from './pages/farmaceutico/AgendaPage';
 import { PacientesPage } from './pages/farmaceutico/PacientesPage';
 import { ConsultaOnlinePage } from './pages/farmaceutico/ConsultaOnlinePage';
+import { RecuperarSenhaPage } from './pages/RecuperarSenhaPage';
+import { AceitarConvitePage } from './pages/AceitarConvitePage';
+import { PainelEmergencia } from './components/PainelEmergencia';
 
 const CLIENTE_NAV = [
   { label: 'Dashboard', path: '/cliente' },
@@ -59,6 +62,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/recuperar-senha" element={<RecuperarSenhaPage />} />
+      <Route path="/aceitar-convite/:token" element={<AceitarConvitePage />} />
 
       <Route
         path="/cliente"

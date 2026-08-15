@@ -1,25 +1,177 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { Consulta } from '../../types';
+import { availabilityApi, consultasApi } from '../../api/endpoints';
+import { Consulta, CONSULTA_STATUS_LABELS, AvailabilitySlot } from '../../types';
+
+const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+function isoToBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function SlotEditor({ onSave }: { onSave: () => void }) {
+  const [slots, setSlots] = useState<AvailabilitySlot[]>(
+    DIAS.map((_, diaSemana) => ({ diaSemana, horaInicio: '08:00', horaFim: '12:00', ativo: false })),
+  );
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    availabilityApi
+      .getMe()
+      .then(({ data }) => {
+        const mapa: Record<number, AvailabilitySlot> = {};
+        data.forEach((s) => {
+          mapa[s.diaSemana] = s;
+        });
+        setSlots(
+          DIAS.map((_, diaSemana) =>
+            mapa[diaSemana] ?? { diaSemana, horaInicio: '08:00', horaFim: '12:00', ativo: false },
+          ),
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  const salva = async () => {
+    setSalvando(true);
+    try {
+      const payload = slots
+        .filter((s) => s.ativo)
+        .map((s) => ({
+          diaSemana: s.diaSemana,
+          horaInicio: s.horaInicio,
+          horaFim: s.horaFim,
+        }));
+      await availabilityApi.update(payload);
+      onSave();
+    } catch {
+      // aviso silencioso
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3>Disponibilidade semanal</h3>
+      <table className="fc-table">
+        <thead>
+          <tr>
+            <th>Dia</th>
+            <th>Ativo</th>
+            <th>Início</th>
+            <th>Fim</th>
+          </tr>
+        </thead>
+        <tbody>
+          {slots.map((s, i) => (
+            <tr key={s.diaSemana}>
+              <td>{DIAS[s.diaSemana]}</td>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={s.ativo ?? false}
+                  onChange={(e) =>
+                    setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, ativo: e.target.checked } : p)))
+                  }
+                />
+              </td>
+              <td>
+                <input
+                  className="fc-input"
+                  type="time"
+                  value={s.horaInicio}
+                  onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaInicio: e.target.value } : p)))}
+                />
+              </td>
+              <td>
+                <input
+                  className="fc-input"
+                  type="time"
+                  value={s.horaFim}
+                  onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaFim: e.target.value } : p)))}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="fc-button primary" style={{ marginTop: 12 }} onClick={salva} disabled={salvando}>
+        {salvando ? 'Salvando...' : 'Salvar disponibilidade'}
+      </button>
+    </div>
+  );
+}
+
+function ConviteForm() {
+  const [email, setEmail] = useState('');
+  const [enviado, setEnviado] = useState('');
+  const [erro, setErro] = useState('');
+
+  const envia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviado('');
+    setErro('');
+    try {
+      await availabilityApi as any;
+      const { data } = await api.post('/invites', { email });
+      setEnviado(data.mensagem ?? 'Convite enviado por e-mail.');
+      setEmail('');
+    } catch (err: any) {
+      setErro(err?.response?.data?.message ?? 'Não foi possível enviar o convite.');
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3>Convidar farmacêutico(a)</h3>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+        Farmacêuticos só podem entrar na plataforma por convite. Envie o link de cadastro para um colega.
+      </p>
+      {enviado && <div className="fc-alert success">{enviado}</div>}
+      {erro && <div className="fc-alert error">{erro}</div>}
+      <form onSubmit={envia} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <div className="fc-field" style={{ flex: 1, margin: 0 }}>
+          <label>Email do colega</label>
+          <input className="fc-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <button className="fc-button primary" type="submit">
+          Enviar convite
+        </button>
+      </form>
+    </div>
+  );
+}
 
 export function AgendaPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const carrega = () => {
+    setLoading(true);
+    consultasApi
+      .mine()
+      .then(({ data }) => setConsultas(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
-    api.get<Consulta[]>('/consultas').then(({ data }) => {
-      setConsultas(data);
-      setLoading(false);
-    });
+    carrega();
   }, []);
 
   return (
     <div>
-      <h1>Agenda geral</h1>
+      <h1>Minha agenda</h1>
+      <SlotEditor onSave={carrega} />
+      <ConviteForm />
+
+      <h3>Consultas agendadas</h3>
       {loading ? (
         <p>Carregando...</p>
       ) : consultas.length === 0 ? (
-        <div className="fc-alert info">Nenhuma consulta cadastrada ate o momento.</div>
+        <div className="fc-alert info">Nenhuma consulta cadastrada até o momento.</div>
       ) : (
         <table className="fc-table">
           <thead>
@@ -29,7 +181,7 @@ export function AgendaPage() {
               <th>Data</th>
               <th>Hora</th>
               <th>Status</th>
-              <th>Observacoes</th>
+              <th>Observações</th>
             </tr>
           </thead>
           <tbody>
@@ -37,9 +189,9 @@ export function AgendaPage() {
               <tr key={c.id}>
                 <td>{c.pacienteNome}</td>
                 <td>{c.pacienteEmail}</td>
-                <td>{c.data.slice(0, 10)}</td>
+                <td>{isoToBR(c.data)}</td>
                 <td>{c.hora}</td>
-                <td>{c.status}</td>
+                <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>{c.observacoes}</td>
               </tr>
             ))}

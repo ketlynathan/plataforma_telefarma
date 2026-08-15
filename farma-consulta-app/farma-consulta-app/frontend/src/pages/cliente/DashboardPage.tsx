@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Consulta } from '../../types';
+import { PainelEmergencia } from '../../components/PainelEmergencia';
 
 export function ClienteDashboardPage() {
   const { user } = useAuth();
@@ -19,8 +20,9 @@ export function ClienteDashboardPage() {
 
   if (loading) return <p>Carregando...</p>;
 
-  const agendadas = consultas.filter((c) => c.status === 'Agendada');
-  const realizadas = consultas.filter((c) => c.status !== 'Agendada');
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const agendadas = consultas.filter((c) => c.data.slice(0, 10) >= hojeStr && c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA');
+  const realizadas = consultas.filter((c) => c.status === 'CONCLUIDA' || c.status === 'CANCELADA' || c.data.slice(0, 10) < hojeStr);
 
   return (
     <div>
@@ -44,6 +46,8 @@ export function ClienteDashboardPage() {
           <div className="delta">Agende uma nova teleconsulta</div>
         </div>
       </div>
+
+      <PainelEmergencia />
 
       <h3>Proximas Consultas</h3>
       {agendadas.length === 0 ? (

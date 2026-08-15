@@ -29,7 +29,7 @@ export class AuthService {
         nome: dto.nome.trim(),
         email: dto.email.trim(),
         senha: hashed,
-        tipo: dto.tipo,
+        tipo: dto.tipo ?? 'cliente',
         telefone: dto.telefone?.trim() ?? '',
       },
     });

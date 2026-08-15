@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { Consulta } from '../../types';
+import { PainelEmergencia } from '../../components/PainelEmergencia';
 
 export function FarmaceuticoDashboardPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
@@ -38,6 +39,8 @@ export function FarmaceuticoDashboardPage() {
           <div className="label">Pacientes unicos</div>
         </div>
       </div>
+
+      <PainelEmergencia />
 
       <h3>Agenda do dia</h3>
       {hoje.length === 0 ? (

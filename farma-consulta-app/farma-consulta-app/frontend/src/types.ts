@@ -4,6 +4,82 @@ export interface Consulta {
   pacienteEmail: string;
   data: string;
   hora: string;
-  status: string;
+  status: ConsultaStatus;
   observacoes?: string;
+  farmaceutico?: { id: string; nome: string };
+  roomSlug?: string;
+  roomToken?: string;
 }
+
+export type ConsultaStatus =
+  | 'AGENDADA'
+  | 'CONFIRMADA'
+  | 'CLIENTE_AGUARDANDO'
+  | 'FARMACEUTICO_AGUARDANDO'
+  | 'EM_ATENDIMENTO'
+  | 'CONCLUIDA'
+  | 'CLIENTE_AUSENTE'
+  | 'FARMACEUTICO_AUSENTE'
+  | 'CANCELADA'
+  | 'REAGENDADA';
+
+export const CONSULTA_STATUS_LABELS: Record<string, string> = {
+  AGENDADA: 'Agendada',
+  CONFIRMADA: 'Confirmada',
+  CLIENTE_AGUARDANDO: 'Cliente aguardando',
+  FARMACEUTICO_AGUARDANDO: 'Farmacêutico aguardando',
+  EM_ATENDIMENTO: 'Em atendimento',
+  CONCLUIDA: 'Concluída',
+  CLIENTE_AUSENTE: 'Cliente ausente',
+  FARMACEUTICO_AUSENTE: 'Farmacêutico ausente',
+  CANCELADA: 'Cancelada',
+  REAGENDADA: 'Reagendada',
+};
+
+export interface Mensagem {
+  id: string;
+  consultaId: string;
+  remetenteId: string;
+  destinatarioId: string;
+  texto: string;
+  lida: boolean;
+  createdAt: string;
+  remetenteMe?: boolean;
+}
+
+export interface SlotFarmaceutico {
+  farmaceuticoId: string;
+  farmaceuticoNome: string;
+  horariosLivres: string[];
+}
+
+export interface AvailabilitySlot {
+  id?: string;
+  diaSemana: number;
+  horaInicio: string;
+  horaFim: string;
+  ativo?: boolean;
+}
+
+export interface EmergencyRequest {
+  id: string;
+  clienteId: string;
+  farmaceuticoId?: string | null;
+  status: 'EM_ABERTO' | 'ATENDIDA' | 'EXPIRADA' | 'CANCELADA' | 'ENCERRADA';
+  roomSlug?: string | null;
+  criadoEm: string;
+  aceitoEm?: string | null;
+  iniciadoEm?: string | null;
+  encerradoEm?: string | null;
+  cliente?: { id: string; nome: string; email: string };
+  farmaceutico?: { id: string; nome: string } | null;
+  roomUrl?: string;
+}
+
+export const EMERGENCY_STATUS_LABELS: Record<string, string> = {
+  EM_ABERTO: 'Aguardando farmacêutico',
+  ATENDIDA: 'Farmacêutico aceitou',
+  EXPIRADA: 'Expirada',
+  CANCELADA: 'Cancelada',
+  ENCERRADA: 'Encerrada',
+};

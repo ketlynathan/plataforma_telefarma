@@ -24,10 +24,39 @@ model User {
   doencasCronicas   String?  @map("doencas_cronicas")
   alergias          String?
   medicamentosUso   String?  @map("medicamentos_uso")
+
+  // Novos campos (adição incremental, seguros em produção)
+  ativo                Boolean  @default(true)   @map("ativo")
+  disponivelEmergencia Boolean  @default(false)  @map("disponivel_emergencia")
+  convidadoPor         String?  @map("convidado_por")
+
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
+  // Relações novas
+  consultas          Consulta[]
+  mensagensEnviadas  Message[]    @relation("Remetente")
+  mensagensRecebidas Message[]    @relation("Destinatario")
+  emergenciasCliente EmergencyRequest[] @relation("ClienteEmergencia")
+  emergenciasFarmaceutico EmergencyRequest[] @relation("FarmaceuticoEmergencia")
+  disponibilidade    Availability[]
+  blockouts          AvailabilityBlockout[]
+  invitesCriados     Invite[]     @relation("CriadoPor")
+
   @@map("usuarios")
+}
+
+enum ConsultaStatus {
+  AGENDADA
+  CONFIRMADA
+  CLIENTE_AGUARDANDO
+  FARMACEUTICO_AGUARDANDO
+  EM_ATENDIMENTO
+  CONCLUIDA
+  CLIENTE_AUSENTE
+  FARMACEUTICO_AUSENTE
+  CANCELADA
+  REAGENDADA
 }
 
 // Equivalente a CONSULTA_COLUMNS em config.py
@@ -37,10 +66,123 @@ model Consulta {
   pacienteEmail String   @map("paciente_email")
   data          DateTime @db.Date
   hora          String
-  status        String   @default("Agendada")
+  // Migrado de string livre para enum (migration de dados normaliza valores antigos)
+  status        ConsultaStatus @default(AGENDADA)
   observacoes   String?
+
+  // Vínculo com o farmacêutico (item 14 - isolamento de agenda)
+  farmaceuticoId String?   @map("farmaceutico_id")
+
+  // Sala Jitsi persistida (item 4 - cliente entra na consulta)
+  roomSlug      String?    @map("room_slug")
+  roomToken     String?    @map("room_token")
+
   createdAt     DateTime @default(now()) @map("created_at")
+
+  farmaceutico   User?         @relation(fields: [farmaceuticoId], references: [id])
+  mensagens      Message[]
 
   @@map("consultas")
   @@index([pacienteEmail])
+  @@index([farmaceuticoId])
+}
+
+// Disponibilidade semanal do farmacêutico (itens 5-8)
+model Availability {
+  id             String   @id @default(uuid())
+  farmaceuticoId String    @map("farmaceutico_id")
+  diaSemana      Int       @map("dia_semana")   // 0=domingo ... 6=sábado
+  horaInicio     String    @map("hora_inicio")  // "08:00"
+  horaFim        String    @map("hora_fim")     // "12:00"
+  ativo          Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  farmaceutico   User @relation(fields: [farmaceuticoId], references: [id])
+
+  @@index([farmaceuticoId])
+  @@unique([farmaceuticoId, diaSemana, horaInicio])
+}
+
+// Bloqueios pontuais de agenda do farmacêutico
+model AvailabilityBlockout {
+  id             String   @id @default(uuid())
+  farmaceuticoId String    @map("farmaceutico_id")
+  inicio         DateTime
+  fim            DateTime
+  motivo         String?
+
+  farmaceutico   User @relation(fields: [farmaceuticoId], references: [id])
+
+  @@index([farmaceuticoId])
+}
+
+// Convite para cadastro de farmacêutico (itens 2-3)
+model Invite {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  criadoPor String   @map("criado_por")
+  usado     Boolean  @default(false)
+  expiraEm  DateTime @map("expira_em")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  criadoPorUser User @relation("CriadoPor", fields: [criadoPor], references: [id])
+}
+
+// Recuperação de senha (item 1)
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  codigo     String   // hash bcrypt do código de 6 dígitos
+  usado      Boolean  @default(false)
+  tentativas Int      @default(0)
+  expiraEm   DateTime @map("expira_em")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+}
+
+// Mensagens da consulta (itens 11-12)
+model Message {
+  id            String   @id @default(uuid())
+  consultaId    String   @map("consulta_id")
+  remetenteId   String   @map("remetente_id")
+  destinatarioId String  @map("destinatario_id")
+  texto         String
+  lida          Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  consulta      Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  remetente     User @relation("Remetente", fields: [remetenteId], references: [id])
+  destinatario  User @relation("Destinatario", fields: [destinatarioId], references: [id])
+
+  @@index([consultaId])
+}
+
+// Solicitações de emergência (itens 22-31)
+enum EmergencyStatus {
+  EM_ABERTO
+  ATENDIDA
+  EXPIRADA
+  CANCELADA
+  ENCERRADA
+}
+
+model EmergencyRequest {
+  id                   String          @id @default(uuid())
+  clienteId            String          @map("cliente_id")
+  farmaceuticoId       String?         @map("farmaceutico_id")
+  status               EmergencyStatus @default(EM_ABERTO)
+  roomSlug             String?         @map("room_slug")
+  criadoEm             DateTime        @default(now()) @map("criado_em")
+  aceitoEm             DateTime?       @map("aceito_em")
+  iniciadoEm           DateTime?       @map("iniciado_em")
+  encerradoEm          DateTime?       @map("encerrado_em")
+  motivoEncerramento   String?         @map("motivo_encerramento")
+
+  cliente     User @relation("ClienteEmergencia", fields: [clienteId], references: [id])
+  farmaceutico User? @relation("FarmaceuticoEmergencia", fields: [farmaceuticoId], references: [id])
+
+  @@index([clienteId])
+  @@index([status])
 }

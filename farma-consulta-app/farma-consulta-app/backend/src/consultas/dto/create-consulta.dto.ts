@@ -1,6 +1,10 @@
-import { IsDateString, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateConsultaDto {
+  @IsNotEmpty()
+  @IsString()
+  farmaceuticoId: string;
+
   @IsDateString()
   data: string;
 

@@ -20,6 +20,21 @@ services:
       - key: FRONTEND_URL
         value: https://farma-consulta-frontend-wxvx.onrender.com
 
+      - key: SMTP_HOST
+        sync: false
+
+      - key: SMTP_PORT
+        sync: false
+
+      - key: SMTP_USER
+        sync: false
+
+      - key: SMTP_PASS
+        sync: false
+
+      - key: SMTP_FROM
+        sync: false
+
   - type: web
     name: farma-consulta-frontend
     runtime: static
