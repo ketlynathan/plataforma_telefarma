@@ -45,7 +45,7 @@ CREATE TABLE "Availability" (
     CONSTRAINT "Availability_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "AvailabilityBlockout" (
+CREATE TABLE "availability_blockouts" (
     "id" TEXT NOT NULL,
     "farmaceutico_id" TEXT NOT NULL,
     "inicio" TIMESTAMP(3) NOT NULL,
