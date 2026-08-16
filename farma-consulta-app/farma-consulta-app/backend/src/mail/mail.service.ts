@@ -48,6 +48,7 @@ export class MailService {
     auth: user && pass ? { user, pass } : undefined,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
+    family: 4, // força IPv4
   });
 }
 
