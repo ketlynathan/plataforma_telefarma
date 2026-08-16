@@ -1,22 +1,16 @@
+// backend/src/availability/availability.controller.ts
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-  Query,
+  Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AvailabilityService } from './availability.service';
-import {
-  UpdateAvailabilityDto,
-  CreateBlockoutDto,
-} from './dto/availability.dto';
+import { UpdateAvailabilityDto, CreateBlockoutDto } from './dto/availability.dto';
 
 @Controller('availability')
+@UseGuards(JwtAuthGuard, RolesGuard)   // ← adicionar esta linha
 export class AvailabilityController {
   constructor(private readonly service: AvailabilityService) {}
 
@@ -32,11 +26,10 @@ export class AvailabilityController {
     return this.service.updateMe(user.id, dto.slots);
   }
 
+  // GET /slots continua público — precisa ficar acessível sem guard
   @Get('slots')
   slots(@Query('data') data: string) {
-    if (!data) {
-      throw new Error('data obrigatória (YYYY-MM-DD)');
-    }
+    if (!data) throw new Error('data obrigatória (YYYY-MM-DD)');
     return this.service.getSlots(data);
   }
 
