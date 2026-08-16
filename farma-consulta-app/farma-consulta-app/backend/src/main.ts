@@ -8,7 +8,9 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   const frontendUrl = config.get<string>('FRONTEND_URL')?.trim().replace(/\/$/, '');
-  const allowedOrigins = [frontendUrl, 'http://localhost:5173'].filter(Boolean);
+  const allowedOrigins: string[] = [frontendUrl, 'http://localhost:5173'].filter(
+    (origin): origin is string => Boolean(origin),
+  );
 
   console.log('CORS liberado para:', allowedOrigins);
 
