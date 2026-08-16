@@ -28,27 +28,28 @@ export class MailService {
   private transport: nodemailer.Transporter | null = null;
 
   constructor(private readonly config: ConfigService) {
-    this.from = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
-    const host = this.config.get<string>('SMTP_HOST');
-    const port = this.config.get<number>('SMTP_PORT', 587);
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
+  this.from = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
+  const host = this.config.get<string>('SMTP_HOST');
+  const port = Number(this.config.get<string>('SMTP_PORT', '587')); // <-- conversão explícita
+  const user = this.config.get<string>('SMTP_USER');
+  const pass = this.config.get<string>('SMTP_PASS');
 
-    if (!host) {
-      // Sem SMTP configurado: grava os e-mails no console (útil em dev) e não falha.
-      this.logger.warn(
-        'SMTP não configurado (SMTP_HOST ausente). E-mails serão logados no console em vez de enviados.',
-      );
-      return;
-    }
-
-    this.transport = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: user && pass ? { user, pass } : undefined,
-    });
+  if (!host) {
+    this.logger.warn(
+      'SMTP não configurado (SMTP_HOST ausente). E-mails serão logados no console em vez de enviados.',
+    );
+    return;
   }
+
+  this.transport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: user && pass ? { user, pass } : undefined,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+  });
+}
 
   async sendResetCode(to: string, code: string) {
     return this.dispatch({
