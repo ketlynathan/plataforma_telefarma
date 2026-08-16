@@ -46,10 +46,18 @@ export function ConsultaOnlinePage() {
     }
   };
 
-  const fechaSala = () => {
+  const fechaSala = async () => {
+    if (aberta) {
+      try {
+        await consultasApi.closeRoom(aberta);
+      } catch {
+        // Mesmo se a sala externa já tiver sido fechada, a janela local pode ser encerrada.
+      }
+    }
     setAberta(null);
     setMensagemAberta(null);
     setRoomUrl('');
+    await carrega();
   };
 
   const admiteAtrasado = async (id: string) => {
@@ -142,7 +150,7 @@ export function ConsultaOnlinePage() {
             {aberta && roomUrl && <iframe src={roomUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }} title="Sala de consulta" />}
             {aberta && !roomUrl && <div className="fc-alert error">Não foi possível criar a sala. Tente novamente.</div>}
             <Mensagens consultaId={aberta ?? mensagemAberta!} />
-            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>Fechar</button>
+            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>Fechar sala e atualizar status</button>
           </div>
         </div>
       )}

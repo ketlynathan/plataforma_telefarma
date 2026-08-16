@@ -46,6 +46,7 @@ export const consultasApi = {
   room: (id: string) => api.get<{ roomSlug: string; roomUrl: string; status: string; toleranciaMin?: number }>(`/consultas/${id}/room`),
   newRoom: (id: string) => api.post<{ roomSlug: string; roomUrl: string; status?: string }>(`/consultas/${id}/new-room`),
   admitLate: (id: string) => api.post(`/consultas/${id}/admit-late`),
+  closeRoom: (id: string) => api.post(`/consultas/${id}/close-room`),
   updateStatus: (id: string, status: string) =>
     api.patch(`/consultas/${id}/status`, { status }),
 };

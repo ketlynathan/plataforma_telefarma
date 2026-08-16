@@ -234,6 +234,24 @@ export class ConsultasService {
     return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}`, status: ConsultaStatus.FARMACEUTICO_AGUARDANDO };
   }
 
+  async fecharSala(id: string, user: { id: string; tipo: string }) {
+    if (user.tipo !== 'farmaceutico') throw new ForbiddenException('Apenas o farmacêutico pode fechar a sala.');
+    const consulta = await this.getConsultaOrThrow(id);
+    if (consulta.farmaceutico?.id !== user.id) throw new ForbiddenException('Esta consulta não pertence a você.');
+
+    const status = consulta.status === ConsultaStatus.EM_ATENDIMENTO
+      ? ConsultaStatus.CONCLUIDA
+      : consulta.status === ConsultaStatus.FARMACEUTICO_AGUARDANDO
+        ? ConsultaStatus.FARMACEUTICO_AUSENTE
+        : consulta.status;
+
+    return this.prisma.consulta.update({
+      where: { id },
+      data: { status },
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
+    });
+  }
+
   async admitirAtrasado(id: string, user: { id: string; tipo: string }) {
     if (user.tipo !== 'farmaceutico') throw new ForbiddenException('Apenas o farmacêutico pode admitir um paciente atrasado.');
     const consulta = await this.getConsultaOrThrow(id);
