@@ -26,44 +26,50 @@ export function AgendamentoPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const carregaSlots = async (dataIso: string) => {
-    setCarregandoSlots(true);
-    setFarmaceuticoId('');
+  setCarregandoSlots(true);
+  setFarmaceuticoId('');
+  setHora('');
+  try {
+    const { data: lista } = await availabilityApi.getSlots(dataIso);
+    setSlots(lista);
+  } catch (err: any) {
+    console.error('Falha ao buscar horários disponíveis', err);
+    setSlots([]);
+    setMessage({
+      type: 'error',
+      text: err?.response?.data?.message ?? 'Não foi possível carregar os horários disponíveis. Tente novamente.',
+    });
+  } finally {
+    setCarregandoSlots(false);
+  }
+};
+
+useEffect(() => {
+  if (data) carregaSlots(data);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [data]);
+
+const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  setMessage(null);
+  if (!farmaceuticoId || !hora) {
+    setMessage({ type: 'error', text: 'Escolha o farmacêutico e o horário.' });
+    return;
+  }
+  setSubmitting(true);
+  try {
+    await consultasApi.create({ farmaceuticoId, data, hora, observacoes });
+    setMessage({ type: 'success', text: 'Consulta agendada com sucesso.' });
     setHora('');
-    try {
-      const { data: lista } = await availabilityApi.getSlots(dataIso);
-      setSlots(lista);
-    } catch {
-      setSlots([]);
-    } finally {
-      setCarregandoSlots(false);
-    }
-  };
-
-  useEffect(() => {
-    if (data) carregaSlots(data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-    if (!farmaceuticoId || !hora) {
-      setMessage({ type: 'error', text: 'Escolha o farmacêutico e o horário.' });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await consultasApi.create({ farmaceuticoId, data, hora, observacoes });
-      setMessage({ type: 'success', text: 'Consulta agendada com sucesso.' });
-      setHora('');
-      setObservacoes('');
-      await carregaSlots(data);
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Erro ao agendar consulta.' });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    setObservacoes('');
+    await carregaSlots(data);
+  } catch (err: any) {
+    console.error('Falha ao agendar consulta', err);
+    setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Erro ao agendar consulta.' });
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const horariosDoFarmaceutico =
     slots.find((s) => s.farmaceuticoId === farmaceuticoId)?.horariosLivres ?? [];
