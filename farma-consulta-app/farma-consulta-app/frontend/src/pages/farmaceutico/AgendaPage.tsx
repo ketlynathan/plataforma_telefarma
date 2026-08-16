@@ -108,18 +108,22 @@ function ConviteForm() {
   const [email, setEmail] = useState('');
   const [enviado, setEnviado] = useState('');
   const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   const envia = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviado('');
     setErro('');
+    setEnviando(true);
     try {
-      await availabilityApi as any;
       const { data } = await api.post('/invites', { email });
       setEnviado(data.mensagem ?? 'Convite enviado por e-mail.');
       setEmail('');
     } catch (err: any) {
+      console.error('Falha ao enviar convite', err);
       setErro(err?.response?.data?.message ?? 'Não foi possível enviar o convite.');
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -131,13 +135,24 @@ function ConviteForm() {
       </p>
       {enviado && <div className="fc-alert success">{enviado}</div>}
       {erro && <div className="fc-alert error">{erro}</div>}
-      <form onSubmit={envia} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-        <div className="fc-field" style={{ flex: 1, margin: 0 }}>
+      <form onSubmit={envia}>
+        <div className="fc-field">
           <label>Email do colega</label>
-          <input className="fc-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input
+            className="fc-input"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
-        <button className="fc-button primary" type="submit">
-          Enviar convite
+        <button
+          className="fc-button primary"
+          type="submit"
+          disabled={enviando}
+          style={{ width: 'auto', padding: '0.6rem 1.5rem' }}
+        >
+          {enviando ? 'Enviando...' : 'Enviar convite'}
         </button>
       </form>
     </div>
