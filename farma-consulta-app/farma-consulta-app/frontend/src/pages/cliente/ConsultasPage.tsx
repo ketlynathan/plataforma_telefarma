@@ -12,7 +12,15 @@ function salaLiberada(consulta: Consulta): boolean {
   if (!consulta.farmaceuticoEntrouEm) return false;
   if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO') return false;
   const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
-  return Date.now() >= inicio.getTime();
+  return Date.now() >= inicio.getTime() && consulta.status === 'EM_ATENDIMENTO' || Date.now() >= inicio.getTime() && Boolean(consulta.farmaceuticoEntrouEm);
+}
+
+function avisoSala(consulta: Consulta): string | null {
+  if (!consulta.farmaceuticoEntrouEm) return null;
+  const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
+  if (Date.now() < inicio.getTime()) return 'O farmacêutico já abriu a sala. A entrada será liberada no horário agendado; você já pode enviar mensagens.';
+  if (consulta.status === 'FARMACEUTICO_AGUARDANDO') return 'O farmacêutico está disponível. Use as mensagens para combinar a entrada, especialmente em caso de atraso.';
+  return null;
 }
 
 export function ConsultasPage() {
@@ -111,6 +119,7 @@ export function ConsultasPage() {
                         Sala não liberada
                       </span>
                     )}
+                    {avisoSala(c) && <div className="fc-alert info" style={{ margin: '4px 0', padding: '6px 8px', fontSize: 12 }}>{avisoSala(c)}</div>}
                     {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
                       <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }} onClick={() => setMensagemAberta(c.id)}>
                         Mensagem

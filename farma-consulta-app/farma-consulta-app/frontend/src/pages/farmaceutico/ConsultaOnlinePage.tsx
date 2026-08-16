@@ -36,11 +36,23 @@ export function ConsultaOnlinePage() {
     carrega();
   }, []);
 
-  const abreSala = async (id: string) => {
+  const entraSalaAtual = async (id: string) => {
+    setAberta(id);
+    try {
+      const { data } = await consultasApi.room(id);
+      setRoomUrl(data.roomUrl);
+      await carrega();
+    } catch {
+      setRoomUrl('');
+    }
+  };
+
+  const abreSalaExtra = async (id: string) => {
     setAberta(id);
     try {
       const { data } = await consultasApi.newRoom(id);
       setRoomUrl(data.roomUrl);
+      await carrega();
     } catch {
       setRoomUrl('');
     }
@@ -112,8 +124,11 @@ export function ConsultaOnlinePage() {
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="fc-button primary" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => abreSala(c.id)}>
-                      Abrir / entrar na sala
+                    <button className="fc-button primary" style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }} onClick={() => entraSalaAtual(c.id)}>
+                      {c.roomSlug ? 'Entrar na sala atual' : 'Abrir sala'}
+                    </button>
+                    <button className="fc-button secondary" style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }} onClick={() => abreSalaExtra(c.id)}>
+                      Abrir sala extra
                     </button>
                     <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => setMensagemAberta(c.id)}>
                       Mensagem

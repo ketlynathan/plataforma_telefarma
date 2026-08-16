@@ -214,10 +214,12 @@ export class ConsultasService {
       throw new ForbiddenException('Apenas o farmacêutico pode abrir nova sala.');
     }
     const consulta = await this.getConsultaOrThrow(id);
-    if (consulta.farmaceutico?.id !== user.id) {
+        if (consulta.farmaceutico?.id !== user.id) {
       throw new ForbiddenException('Esta consulta não pertence a você.');
     }
-
+    if (consulta.status === ConsultaStatus.CANCELADA || consulta.status === ConsultaStatus.CONCLUIDA) {
+      throw new ConflictException('Não é possível abrir uma sala extra para uma consulta encerrada.');
+    }
     const roomSlug = `farma-${crypto.randomBytes(6).toString('hex')}`;
     const roomToken = crypto.randomBytes(24).toString('hex');
 
