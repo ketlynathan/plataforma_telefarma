@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 type SendOptions = { to: string; subject: string; html: string };
 
@@ -28,29 +29,31 @@ export class MailService {
   private transport: nodemailer.Transporter | null = null;
 
   constructor(private readonly config: ConfigService) {
-  this.from = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
-  const host = this.config.get<string>('SMTP_HOST');
-  const port = Number(this.config.get<string>('SMTP_PORT', '587')); // <-- conversão explícita
-  const user = this.config.get<string>('SMTP_USER');
-  const pass = this.config.get<string>('SMTP_PASS');
+    this.from = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
+    const host = this.config.get<string>('SMTP_HOST');
+    const port = Number(this.config.get<string>('SMTP_PORT', '587'));
+    const user = this.config.get<string>('SMTP_USER');
+    const pass = this.config.get<string>('SMTP_PASS');
 
-  if (!host) {
-    this.logger.warn(
-      'SMTP não configurado (SMTP_HOST ausente). E-mails serão logados no console em vez de enviados.',
-    );
-    return;
+    if (!host) {
+      this.logger.warn(
+        'SMTP não configurado (SMTP_HOST ausente). E-mails serão logados no console em vez de enviados.',
+      );
+      return;
+    }
+
+    const options: SMTPTransport.Options = {
+      host,
+      port,
+      secure: port === 465,
+      auth: user && pass ? { user, pass } : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      family: 4,
+    };
+
+    this.transport = nodemailer.createTransport(options);
   }
-
-  this.transport = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: user && pass ? { user, pass } : undefined,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    family: 4, // força IPv4
-  });
-}
 
   async sendResetCode(to: string, code: string) {
     return this.dispatch({
@@ -117,7 +120,6 @@ export class MailService {
 
   private async dispatch(options: SendOptions) {
     if (!this.transport) {
-      // Fallback: loga no console quando SMTP não está configurado.
       this.logger.log(
         `[MAIL-FALLBACK] to=${options.to} subject="${options.subject}" html_length=${options.html.length}`,
       );
@@ -132,7 +134,6 @@ export class MailService {
       });
       this.logger.log(`E-mail enviado para ${options.to}: ${options.subject}`);
     } catch (err) {
-      // Não falha a operação de negócio por causa do envio de e-mail.
       this.logger.error(`Falha ao enviar e-mail para ${options.to}`, err);
     }
   }
