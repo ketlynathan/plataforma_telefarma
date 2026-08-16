@@ -36,7 +36,7 @@ services:
 
     envVars:
       - key: VITE_API_URL
-        value: https://SEU-BACKEND-REAL.onrender.com/api   # <-- ajustar aqui
+        value: https://farma-consulta-backend-wxvx.onrender.com  # <-- ajustar aqui
 
     routes:
       - type: rewrite
