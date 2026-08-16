@@ -12,6 +12,7 @@ export function ConsultasPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
   const [aberta, setAberta] = useState<string | null>(null);
+  const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
   const [room, setRoom] = useState<{ roomUrl: string; status: string } | null>(null);
   const [naoLidas, setNaoLidas] = useState(0);
 
@@ -31,6 +32,7 @@ export function ConsultasPage() {
     carrega();
     const interval = setInterval(() => {
       messagesApi.unreadCount().then(({ data }) => setNaoLidas(data.count ?? 0)).catch(() => {});
+      carrega();
     }, 15_000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,6 +50,7 @@ export function ConsultasPage() {
 
   const fechaSala = () => {
     setAberta(null);
+    setMensagemAberta(null);
     setRoom(null);
   };
 
@@ -96,7 +99,12 @@ export function ConsultasPage() {
                         Entrar na consulta
                       </button>
                     )}
-                    {(c.status === 'AGENDADA' || c.status === 'CONFIRMADA') && (
+                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
+                      <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }} onClick={() => setMensagemAberta(c.id)}>
+                        Mensagem
+                      </button>
+                    )}
+                    {(c.status === 'AGENDADA' || c.status === 'CONFIRMADA' || c.status === 'FARMACEUTICO_AGUARDANDO' || c.status === 'EM_ATENDIMENTO') && (
                       <button
                         className="fc-button danger"
                         style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }}
@@ -112,23 +120,20 @@ export function ConsultasPage() {
         </table>
       )}
 
-      {aberta && (
+      {(aberta || mensagemAberta) && (
         <div className="fc-modal" style={{ display: 'block' }}>
           <div className="fc-modal-content">
-            <h2>Consulta em andamento</h2>
-            {room?.roomUrl ? (
-              <>
-                <iframe
-                  src={room.roomUrl}
-                  allow="camera; microphone; fullscreen; display-capture; autoplay"
-                  style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }}
-                  title="Sala de consulta"
-                />
-                <Mensagens consultaId={aberta} />
-              </>
-            ) : (
-              <div className="fc-alert error">{room?.status ?? 'Erro ao carregar sala.'}</div>
+            <h2>{aberta ? 'Consulta' : 'Mensagens da consulta'}</h2>
+            {aberta && room?.roomUrl && (
+              <iframe
+                src={room.roomUrl}
+                allow="camera; microphone; fullscreen; display-capture; autoplay"
+                style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }}
+                title="Sala de consulta"
+              />
             )}
+            {aberta && !room?.roomUrl && <div className="fc-alert info">{room?.status ?? 'A sala ainda não está liberada.'}</div>}
+            <Mensagens consultaId={aberta ?? mensagemAberta!} />
             <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>
               Fechar
             </button>

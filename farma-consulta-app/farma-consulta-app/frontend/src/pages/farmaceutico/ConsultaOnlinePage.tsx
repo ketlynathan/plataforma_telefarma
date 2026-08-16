@@ -14,6 +14,7 @@ export function ConsultaOnlinePage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [aberta, setAberta] = useState<string | null>(null);
+  const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
   const [roomUrl, setRoomUrl] = useState('');
 
   const carrega = async () => {
@@ -47,7 +48,22 @@ export function ConsultaOnlinePage() {
 
   const fechaSala = () => {
     setAberta(null);
+    setMensagemAberta(null);
     setRoomUrl('');
+  };
+
+  const admiteAtrasado = async (id: string) => {
+    try {
+      await consultasApi.admitLate(id);
+      await carrega();
+    } catch {
+      // erro silencioso
+    }
+  };
+
+  const passouTolerancia = (consulta: Consulta) => {
+    const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
+    return Date.now() > inicio.getTime() + (consulta.toleranciaMin ?? 15) * 60_000;
   };
 
   const mudaStatus = async (id: string, status: string) => {
@@ -89,8 +105,16 @@ export function ConsultaOnlinePage() {
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="fc-button primary" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => abreSala(c.id)}>
-                      Iniciar / entrar
+                      Abrir / entrar na sala
                     </button>
+                    <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => setMensagemAberta(c.id)}>
+                      Mensagem
+                    </button>
+                    {passouTolerancia(c) && (c.status === 'FARMACEUTICO_AGUARDANDO' || c.status === 'CLIENTE_AGUARDANDO') && (
+                      <button className="fc-button danger" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => admiteAtrasado(c.id)}>
+                        Admitir paciente atrasado
+                      </button>
+                    )}
                     <select
                       className="fc-select"
                       style={{ fontSize: 13, padding: '3px 6px' }}
@@ -111,26 +135,14 @@ export function ConsultaOnlinePage() {
         </table>
       )}
 
-      {aberta && (
+      {(aberta || mensagemAberta) && (
         <div className="fc-modal" style={{ display: 'block' }}>
           <div className="fc-modal-content">
-            <h2>Sala de atendimento</h2>
-            {roomUrl ? (
-              <>
-                <iframe
-                  src={roomUrl}
-                  allow="camera; microphone; fullscreen; display-capture; autoplay"
-                  style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }}
-                  title="Sala de consulta"
-                />
-                <Mensagens consultaId={aberta} />
-              </>
-            ) : (
-              <div className="fc-alert error">Não foi possível criar a sala. Tente novamente.</div>
-            )}
-            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>
-              Fechar
-            </button>
+            <h2>{aberta ? 'Sala de atendimento' : 'Mensagens da consulta'}</h2>
+            {aberta && roomUrl && <iframe src={roomUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }} title="Sala de consulta" />}
+            {aberta && !roomUrl && <div className="fc-alert error">Não foi possível criar a sala. Tente novamente.</div>}
+            <Mensagens consultaId={aberta ?? mensagemAberta!} />
+            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>Fechar</button>
           </div>
         </div>
       )}

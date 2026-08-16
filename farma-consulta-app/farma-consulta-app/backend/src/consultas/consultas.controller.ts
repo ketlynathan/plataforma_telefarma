@@ -51,6 +51,12 @@ export class ConsultasController {
     return this.consultasService.newRoom(id, user);
   }
 
+  @Post(':id/admit-late')
+  @Roles('farmaceutico')
+  admitirAtrasado(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.consultasService.admitirAtrasado(id, user);
+  }
+
   /** Item 13: transições de status controladas. */
   @Patch(':id/status')
   @Roles('cliente', 'farmaceutico')

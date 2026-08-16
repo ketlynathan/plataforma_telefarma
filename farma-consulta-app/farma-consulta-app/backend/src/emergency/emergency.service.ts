@@ -64,11 +64,16 @@ export class EmergencyService {
   // ---------- Cliente: acompanhar ----------
 
   async minha(clienteId: string) {
-    return this.prisma.emergencyRequest.findFirst({
+    const request = await this.prisma.emergencyRequest.findFirst({
       where: { clienteId },
       orderBy: { criadoEm: 'desc' },
       include: { farmaceutico: { select: { id: true, nome: true } } },
     });
+    if (!request) return null;
+    return {
+      ...request,
+      roomUrl: request.roomSlug ? `https://meet.jit.si/${request.roomSlug}` : null,
+    };
   }
 
   // ---------- Farmacêutico: listar abertas ----------

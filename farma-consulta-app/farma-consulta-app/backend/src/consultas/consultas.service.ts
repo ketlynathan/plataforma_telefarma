@@ -138,7 +138,11 @@ export class ConsultasService {
    * Só o cliente dono ou o farmacêutico da consulta podem entrar.
    */
   async getRoom(id: string, user: { id: string; email?: string; tipo: string }) {
-    const consulta = await this.getConsultaOrThrow(id);
+    const consulta = await this.prisma.consulta.findUnique({
+      where: { id },
+      include: { farmaceutico: { select: { id: true } } },
+    });
+    if (!consulta) throw new BadRequestException('Consulta não encontrada.');
 
     const isCliente = user.tipo === 'cliente' && user.email === consulta.pacienteEmail;
     const isFarmaceutico =
@@ -148,22 +152,59 @@ export class ConsultasService {
       throw new ForbiddenException('Você não tem acesso a esta consulta.');
     }
 
+    if (consulta.status === ConsultaStatus.CANCELADA || consulta.status === ConsultaStatus.CONCLUIDA) {
+      throw new BadRequestException('Esta consulta não está disponível para entrada.');
+    }
+
+    const dataIso = consulta.data.toISOString().slice(0, 10);
+    const inicio = new Date(`${dataIso}T${consulta.hora}:00`);
+    const limiteAtraso = new Date(inicio.getTime() + consulta.toleranciaMin * 60_000);
+    const agora = new Date();
+
+    if (isCliente) {
+      if (agora < inicio) {
+        throw new BadRequestException(`A sala estará disponível a partir de ${consulta.hora}.`);
+      }
+      if (!consulta.farmaceuticoEntrouEm) {
+        throw new BadRequestException('Aguardando o farmacêutico entrar na sala. Você pode enviar uma mensagem enquanto aguarda.');
+      }
+      if (agora > limiteAtraso && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
+        throw new BadRequestException('O prazo de tolerância terminou. Envie uma mensagem ao farmacêutico para solicitar o atendimento.');
+      }
+    }
+
     let roomSlug = consulta.roomSlug;
     let roomToken = consulta.roomToken;
 
-    if (!roomSlug || !roomToken) {
-      roomSlug = `farma-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomBytes(6).toString('hex')}`;
-      roomToken = crypto.randomBytes(24).toString('hex');
+    const agoraEntrada = new Date();
+    const updateData: any = {};
+    if (isFarmaceutico && !consulta.farmaceuticoEntrouEm) {
+      updateData.farmaceuticoEntrouEm = agoraEntrada;
+      if (consulta.status === ConsultaStatus.AGENDADA || consulta.status === ConsultaStatus.CONFIRMADA) {
+        updateData.status = ConsultaStatus.FARMACEUTICO_AGUARDANDO;
+      }
+    }
+    if (isCliente && !consulta.clienteEntrouEm) {
+      updateData.clienteEntrouEm = agoraEntrada;
+      updateData.status = ConsultaStatus.EM_ATENDIMENTO;
+    }
+
+    if (!roomSlug || !roomToken || Object.keys(updateData).length > 0) {
+      roomSlug = roomSlug ?? `farma-${dataIso.replace(/-/g, '')}-${crypto.randomBytes(6).toString('hex')}`;
+      roomToken = roomToken ?? crypto.randomBytes(24).toString('hex');
       await this.prisma.consulta.update({
         where: { id },
-        data: { roomSlug, roomToken },
+        data: { roomSlug, roomToken, ...updateData },
       });
     }
 
     return {
       roomSlug,
       roomUrl: `https://meet.jit.si/${roomSlug}`,
-      status: consulta.status,
+      status: updateData.status ?? consulta.status,
+      farmaceuticoEntrouEm: isFarmaceutico ? agoraEntrada : consulta.farmaceuticoEntrouEm,
+      clienteEntrouEm: isCliente ? agoraEntrada : consulta.clienteEntrouEm,
+      toleranciaMin: consulta.toleranciaMin,
     };
   }
 
@@ -182,10 +223,27 @@ export class ConsultasService {
 
     await this.prisma.consulta.update({
       where: { id },
-      data: { roomSlug, roomToken },
+      data: {
+        roomSlug,
+        roomToken,
+        farmaceuticoEntrouEm: new Date(),
+        status: ConsultaStatus.FARMACEUTICO_AGUARDANDO,
+      },
     });
 
-    return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}` };
+    return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}`, status: ConsultaStatus.FARMACEUTICO_AGUARDANDO };
+  }
+
+  async admitirAtrasado(id: string, user: { id: string; tipo: string }) {
+    if (user.tipo !== 'farmaceutico') throw new ForbiddenException('Apenas o farmacêutico pode admitir um paciente atrasado.');
+    const consulta = await this.getConsultaOrThrow(id);
+    if (consulta.farmaceutico?.id !== user.id) throw new ForbiddenException('Esta consulta não pertence a você.');
+    if (!consulta.farmaceuticoEntrouEm) throw new BadRequestException('Entre na sala antes de admitir o paciente.');
+    return this.prisma.consulta.update({
+      where: { id },
+      data: { status: ConsultaStatus.EM_ATENDIMENTO },
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
+    });
   }
 
   // ---------- Transições de status (item 13) ----------

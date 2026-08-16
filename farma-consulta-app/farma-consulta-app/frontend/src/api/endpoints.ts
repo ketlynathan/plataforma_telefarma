@@ -43,8 +43,9 @@ export const consultasApi = {
   me: () => api.get<Consulta[]>('/consultas/me'),
   mine: () => api.get<Consulta[]>('/consultas'),
   pacientes: () => api.get('/consultas/pacientes'),
-  room: (id: string) => api.get<{ roomSlug: string; roomUrl: string; status: string }>(`/consultas/${id}/room`),
-  newRoom: (id: string) => api.post<{ roomSlug: string; roomUrl: string }>(`/consultas/${id}/new-room`),
+  room: (id: string) => api.get<{ roomSlug: string; roomUrl: string; status: string; toleranciaMin?: number }>(`/consultas/${id}/room`),
+  newRoom: (id: string) => api.post<{ roomSlug: string; roomUrl: string; status?: string }>(`/consultas/${id}/new-room`),
+  admitLate: (id: string) => api.post(`/consultas/${id}/admit-late`),
   updateStatus: (id: string, status: string) =>
     api.patch(`/consultas/${id}/status`, { status }),
 };

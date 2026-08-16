@@ -9,6 +9,9 @@ export interface Consulta {
   farmaceutico?: { id: string; nome: string; tratamento?: string | null; crf?: string | null };
   roomSlug?: string;
   roomToken?: string;
+  farmaceuticoEntrouEm?: string | null;
+  clienteEntrouEm?: string | null;
+  toleranciaMin?: number;
 }
 
 export function formatFarmaceutico(nome: string, tratamento?: string | null, crf?: string | null): string {

@@ -83,6 +83,9 @@ model Consulta {
   // Sala Jitsi persistida (item 4 - cliente entra na consulta)
   roomSlug      String?    @map("room_slug")
   roomToken     String?    @map("room_token")
+  farmaceuticoEntrouEm DateTime? @map("farmaceutico_entrou_em")
+  clienteEntrouEm      DateTime? @map("cliente_entrou_em")
+  toleranciaMin        Int      @default(15) @map("tolerancia_min")
 
   createdAt     DateTime @default(now()) @map("created_at")
 
