@@ -8,6 +8,13 @@ function isoToBR(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function salaLiberada(consulta: Consulta): boolean {
+  if (!consulta.farmaceuticoEntrouEm) return false;
+  if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO') return false;
+  const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
+  return Date.now() >= inicio.getTime();
+}
+
 export function ConsultasPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,10 +101,15 @@ export function ConsultasPage() {
                   <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                   <td>{c.observacoes}</td>
                   <td>
-                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
-                      <button className="fc-button primary" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => entraNaSala(c.id)}>
+                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && salaLiberada(c) && (
+                      <button className="fc-button primary" style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }} onClick={() => entraNaSala(c.id)}>
                         Entrar na consulta
                       </button>
+                    )}
+                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && !salaLiberada(c) && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', minHeight: '2.8rem', fontSize: 13, color: 'var(--text-muted)' }}>
+                        Sala não liberada
+                      </span>
                     )}
                     {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
                       <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }} onClick={() => setMensagemAberta(c.id)}>

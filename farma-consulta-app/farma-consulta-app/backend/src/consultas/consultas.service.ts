@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConsultaStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -221,17 +221,21 @@ export class ConsultasService {
     const roomSlug = `farma-${crypto.randomBytes(6).toString('hex')}`;
     const roomToken = crypto.randomBytes(24).toString('hex');
 
+    const statusAtual = consulta.status === ConsultaStatus.EM_ATENDIMENTO
+      ? ConsultaStatus.EM_ATENDIMENTO
+      : ConsultaStatus.FARMACEUTICO_AGUARDANDO;
+
     await this.prisma.consulta.update({
       where: { id },
       data: {
         roomSlug,
         roomToken,
-        farmaceuticoEntrouEm: new Date(),
-        status: ConsultaStatus.FARMACEUTICO_AGUARDANDO,
+        farmaceuticoEntrouEm: consulta.farmaceuticoEntrouEm ?? new Date(),
+        status: statusAtual,
       },
     });
 
-    return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}`, status: ConsultaStatus.FARMACEUTICO_AGUARDANDO };
+    return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}`, status: statusAtual };
   }
 
   async fecharSala(id: string, user: { id: string; tipo: string }) {
@@ -274,6 +278,17 @@ export class ConsultasService {
     }
     if (user.tipo === 'farmaceutico' && consulta.farmaceutico?.id !== user.id) {
       throw new ForbiddenException('Esta consulta não pertence a você.');
+    }
+
+    const estadosDeEspera: ConsultaStatus[] = [
+      ConsultaStatus.AGENDADA,
+      ConsultaStatus.CONFIRMADA,
+      ConsultaStatus.CLIENTE_AGUARDANDO,
+      ConsultaStatus.FARMACEUTICO_AGUARDANDO,
+    ];
+
+    if (consulta.status === ConsultaStatus.EM_ATENDIMENTO && estadosDeEspera.includes(status)) {
+      throw new ConflictException('A consulta já está em atendimento e não pode voltar para um estado de espera.');
     }
 
     const atualizado = await this.prisma.consulta.update({
