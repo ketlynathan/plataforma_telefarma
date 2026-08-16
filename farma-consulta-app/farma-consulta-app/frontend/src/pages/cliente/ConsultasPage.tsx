@@ -12,7 +12,7 @@ function salaLiberada(consulta: Consulta): boolean {
   if (!consulta.farmaceuticoEntrouEm) return false;
   if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO') return false;
   const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
-  return Date.now() >= inicio.getTime() && consulta.status === 'EM_ATENDIMENTO' || Date.now() >= inicio.getTime() && Boolean(consulta.farmaceuticoEntrouEm);
+  return Date.now() >= inicio.getTime();
 }
 
 function avisoSala(consulta: Consulta): string | null {
@@ -116,7 +116,7 @@ export function ConsultasPage() {
                     )}
                     {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && !salaLiberada(c) && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', minHeight: '2.8rem', fontSize: 13, color: 'var(--text-muted)' }}>
-                        Sala não liberada
+                        {c.farmaceuticoEntrouEm ? 'Sala aberta; aguarde o horário' : 'Aguardando liberação'}
                       </span>
                     )}
                     {avisoSala(c) && <div className="fc-alert info" style={{ margin: '4px 0', padding: '6px 8px', fontSize: 12 }}>{avisoSala(c)}</div>}
