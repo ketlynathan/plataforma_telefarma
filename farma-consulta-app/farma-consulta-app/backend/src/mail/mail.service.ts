@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 type SendOptions = { to: string; subject: string; html: string };
 
 const BRAND = '#166534';
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 function baseHtml(title: string, body: string, accent = BRAND): string {
   return `
@@ -22,37 +21,31 @@ function baseHtml(title: string, body: string, accent = BRAND): string {
 </html>`;
 }
 
+/** Extrai nome + email de uma string tipo "FarmaAtende <email@dominio.com>". */
+function parseFrom(raw: string): { name?: string; email: string } {
+  const match = raw.match(/^(.*)<(.+)>$/);
+  if (match) {
+    return { name: match[1].trim() || undefined, email: match[2].trim() };
+  }
+  return { email: raw.trim() };
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly from: string;
-  private transport: nodemailer.Transporter | null = null;
+  private readonly apiKey: string | undefined;
+  private readonly from: { name?: string; email: string };
 
   constructor(private readonly config: ConfigService) {
-    this.from = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
-    const host = this.config.get<string>('SMTP_HOST');
-    const port = Number(this.config.get<string>('SMTP_PORT', '587'));
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
+    this.apiKey = this.config.get<string>('BREVO_API_KEY');
+    const fromRaw = this.config.get<string>('SMTP_FROM', 'FarmaAtende <naoresponda@farmaatende.com>');
+    this.from = parseFrom(fromRaw);
 
-    if (!host) {
+    if (!this.apiKey) {
       this.logger.warn(
-        'SMTP não configurado (SMTP_HOST ausente). E-mails serão logados no console em vez de enviados.',
+        'BREVO_API_KEY não configurada. E-mails serão logados no console em vez de enviados.',
       );
-      return;
     }
-
-    const options: SMTPTransport.Options = {
-      host,
-      port,
-      secure: port === 465,
-      auth: user && pass ? { user, pass } : undefined,
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      family: 4,
-    };
-
-    this.transport = nodemailer.createTransport(options);
   }
 
   async sendResetCode(to: string, code: string) {
@@ -119,19 +112,34 @@ export class MailService {
   }
 
   private async dispatch(options: SendOptions) {
-    if (!this.transport) {
+    if (!this.apiKey) {
       this.logger.log(
         `[MAIL-FALLBACK] to=${options.to} subject="${options.subject}" html_length=${options.html.length}`,
       );
       return;
     }
+
     try {
-      await this.transport.sendMail({
-        from: this.from,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'api-key': this.apiKey,
+        },
+        body: JSON.stringify({
+          sender: this.from,
+          to: [{ email: options.to }],
+          subject: options.subject,
+          htmlContent: options.html,
+        }),
       });
+
+      if (!response.ok) {
+        const bodyText = await response.text();
+        throw new Error(`Brevo API respondeu ${response.status}: ${bodyText}`);
+      }
+
       this.logger.log(`E-mail enviado para ${options.to}: ${options.subject}`);
     } catch (err) {
       this.logger.error(`Falha ao enviar e-mail para ${options.to}`, err);
