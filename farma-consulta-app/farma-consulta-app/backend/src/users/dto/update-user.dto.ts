@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional() @IsString() nome?: string;
@@ -12,4 +12,11 @@ export class UpdateUserDto {
   @IsOptional() @IsString() doencasCronicas?: string;
   @IsOptional() @IsString() alergias?: string;
   @IsOptional() @IsString() medicamentosUso?: string;
+
+  @IsOptional() @IsIn(['Dr.', 'Dra.']) tratamento?: string;
+  @IsOptional() @IsString() crf?: string;
+  @IsOptional() @IsString() banco?: string;
+  @IsOptional() @IsString() agencia?: string;
+  @IsOptional() @IsString() contaBancaria?: string;
+  @IsOptional() @IsString() chavePix?: string;
 }
