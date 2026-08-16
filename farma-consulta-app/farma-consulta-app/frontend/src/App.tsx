@@ -12,6 +12,7 @@ import { FarmaceuticoDashboardPage } from './pages/farmaceutico/DashboardPage';
 import { AgendaPage } from './pages/farmaceutico/AgendaPage';
 import { PacientesPage } from './pages/farmaceutico/PacientesPage';
 import { ConsultaOnlinePage } from './pages/farmaceutico/ConsultaOnlinePage';
+import { PerfilPage as FarmaceuticoPerfilPage } from './pages/farmaceutico/PerfilPage';
 import { RecuperarSenhaPage } from './pages/RecuperarSenhaPage';
 import { AceitarConvitePage } from './pages/AceitarConvitePage';
 import { PainelEmergencia } from './components/PainelEmergencia';
@@ -28,6 +29,7 @@ const FARMACEUTICO_NAV = [
   { label: 'Agenda', path: '/farmaceutico/agenda' },
   { label: 'Consulta online', path: '/farmaceutico/consulta-online' },
   { label: 'Pacientes', path: '/farmaceutico/pacientes' },
+  { label: 'Perfil', path: '/farmaceutico/perfil' },
 ];
 
 function ClienteLayout({ children }: { children: React.ReactNode }) {
@@ -119,6 +121,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute tipo="farmaceutico">
             <FarmaceuticoLayout><ConsultaOnlinePage /></FarmaceuticoLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/farmaceutico/perfil"
+        element={
+          <ProtectedRoute tipo="farmaceutico">
+            <FarmaceuticoLayout><FarmaceuticoPerfilPage /></FarmaceuticoLayout>
           </ProtectedRoute>
         }
       />

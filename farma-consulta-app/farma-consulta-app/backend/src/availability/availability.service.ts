@@ -98,7 +98,7 @@ export class AvailabilityService {
     // Farmacêuticos ativos (por padrão todos, menos quem se desativar).
     const farmaceuticos = await this.prisma.user.findMany({
       where: { tipo: 'farmaceutico', ativo: true },
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, tratamento: true, crf: true },
     });
 
     if (farmaceuticos.length === 0) return [];
@@ -168,6 +168,8 @@ export class AvailabilityService {
       return {
         farmaceuticoId: farm.id,
         farmaceuticoNome: farm.nome,
+        farmaceuticoTratamento: farm.tratamento ?? null,
+        farmaceuticoCrf: farm.crf ?? null,
         horariosLivres,
       };
     });

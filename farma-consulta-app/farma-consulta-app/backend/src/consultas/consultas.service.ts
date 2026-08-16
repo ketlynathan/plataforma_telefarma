@@ -3,6 +3,7 @@ import { ConsultaStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
+import { MailService } from '../mail/mail.service';
 
 const DURACAO_SLOT_MIN = 60;
 
@@ -15,7 +16,10 @@ function toMinutes(hhmm: string): number {
 export class ConsultasService {
   private readonly logger = new Logger(ConsultasService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   // ---------- Criação com validação de disponibilidade (transação) ----------
 
@@ -60,9 +64,22 @@ export class ConsultasService {
           roomSlug,
           roomToken,
         },
-        include: { farmaceutico: { select: { id: true, nome: true } } },
+        include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
       });
     });
+
+    const farmaceutico = await this.prisma.user.findUnique({
+      where: { id: dto.farmaceuticoId },
+      select: { nome: true, email: true },
+    });
+    if (farmaceutico?.email) {
+      await this.mail.sendConsultationBooked(farmaceutico.email, farmaceutico.nome, {
+        pacienteNome: paciente.nome,
+        data: dataIso,
+        hora: dto.hora,
+        observacoes: dto.observacoes,
+      });
+    }
 
     this.logger.log(`Consulta criada para ${dataIso} ${dto.hora} com ${dto.farmaceuticoId}`);
     return resultado;
@@ -73,7 +90,7 @@ export class ConsultasService {
   findByEmail(email: string) {
     return this.prisma.consulta.findMany({
       where: { pacienteEmail: email },
-      include: { farmaceutico: { select: { id: true, nome: true } } },
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
       orderBy: [{ data: 'asc' }, { hora: 'asc' }],
     });
   }
@@ -83,7 +100,7 @@ export class ConsultasService {
   findByFarmaceutico(farmaceuticoId: string) {
     return this.prisma.consulta.findMany({
       where: { farmaceuticoId },
-      include: { farmaceutico: { select: { id: true, nome: true } } },
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
       orderBy: [{ data: 'asc' }, { hora: 'asc' }],
     });
   }
@@ -186,7 +203,7 @@ export class ConsultasService {
     const atualizado = await this.prisma.consulta.update({
       where: { id },
       data: { status },
-      include: { farmaceutico: { select: { id: true, nome: true } } },
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
     });
 
     this.logger.log(`Status da consulta ${id} → ${status}`);

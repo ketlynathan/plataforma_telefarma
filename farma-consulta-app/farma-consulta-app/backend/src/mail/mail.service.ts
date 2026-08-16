@@ -111,6 +111,64 @@ export class MailService {
     });
   }
 
+  async sendConsultationBooked(
+    to: string,
+    farmaceuticoNome: string,
+    consulta: { pacienteNome: string; data: string; hora: string; observacoes?: string | null },
+  ) {
+    return this.dispatch({
+      to,
+      subject: `Nova consulta agendada para ${consulta.data} às ${consulta.hora} — FarmaAtende`,
+      html: baseHtml(
+        'Nova consulta agendada',
+        `<p>Olá, <strong>${farmaceuticoNome}</strong>.</p>
+         <p>Uma nova consulta foi agendada para <strong>${consulta.data}</strong>, às <strong>${consulta.hora}</strong>.</p>
+         <p><strong>Paciente:</strong> ${consulta.pacienteNome}</p>
+         <p><strong>Observações:</strong> ${consulta.observacoes || '—'}</p>
+         <p>Acesse a plataforma para consultar os detalhes e entrar na sala de atendimento.</p>`,
+      ),
+    });
+  }
+
+  async sendEmergencyAlert(
+    to: string,
+    farmaceuticoNome: string,
+    emergencia: { pacienteNome: string; criadoEm: string },
+  ) {
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://farma-consulta-app.onrender.com');
+    return this.dispatch({
+      to,
+      subject: 'Solicitação de emergência farmacêutica — FarmaAtende',
+      html: baseHtml(
+        'Emergência farmacêutica',
+        `<p>Olá, <strong>${farmaceuticoNome}</strong>.</p>
+         <p>O paciente <strong>${emergencia.pacienteNome}</strong> solicitou atendimento de emergência.</p>
+         <p>O pedido foi aberto em <strong>${emergencia.criadoEm}</strong>. Mesmo que você esteja marcado como indisponível, entre na plataforma se puder assumir o atendimento.</p>
+         <p style="text-align:center;margin:24px 0"><a href="${frontendUrl}/farmaceutico" style="background:#b91c1c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold">Ver emergência</a></p>
+         <p>O primeiro farmacêutico que aceitar ficará responsável pela chamada.</p>`,
+        '#b91c1c',
+      ),
+    });
+  }
+
+  async sendEmergencyUnavailable(
+    to: string,
+    pacienteNome: string,
+    criadoEm: string,
+  ) {
+    return this.dispatch({
+      to,
+      subject: 'Não foi possível atender sua emergência — FarmaAtende',
+      html: baseHtml(
+        'Emergência sem atendimento',
+        `<p>Olá, <strong>${pacienteNome}</strong>.</p>
+         <p>Recebemos sua solicitação de emergência em <strong>${criadoEm}</strong>, mas nenhum farmacêutico conseguiu assumir o atendimento dentro do prazo.</p>
+         <p>Pedimos desculpas pela indisponibilidade. Se a situação for urgente ou representar risco à sua saúde, procure imediatamente um serviço de emergência.</p>`,
+        '#b91c1c',
+      ),
+    });
+  }
+
   private async dispatch(options: SendOptions) {
     if (!this.apiKey) {
       this.logger.log(

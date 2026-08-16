@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { EmergencyStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 const EM_ABERTO: EmergencyStatus = EmergencyStatus.EM_ABERTO;
 const ATENDIDA: EmergencyStatus = EmergencyStatus.ATENDIDA;
@@ -16,7 +17,10 @@ const DURACAO_MAX_MIN = 30;
 export class EmergencyService {
   private readonly logger = new Logger(EmergencyService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   // ---------- Cliente: solicitar ----------
 
@@ -28,21 +32,32 @@ export class EmergencyService {
       throw new ConflictException('Você já possui uma solicitação de emergência em aberto.');
     }
 
-    // Só aceita se houver ao menos um farmacêutico disponível para emergência.
-    const disponiveis = await this.prisma.user.count({
-      where: { tipo: 'farmaceutico', ativo: true, disponivelEmergencia: true },
+    const cliente = await this.prisma.user.findUnique({
+      where: { id: clienteId },
+      select: { nome: true },
     });
-    if (disponiveis === 0) {
-      throw new BadRequestException(
-        'Nenhum farmacêutico está disponível para emergências neste momento.',
-      );
-    }
+
+    // Emergência não depende do indicador de disponibilidade: todos os farmacêuticos
+    // ativos são avisados e decidem individualmente se conseguem assumir a chamada.
+    const farmaceuticos = await this.prisma.user.findMany({
+      where: { tipo: 'farmaceutico', ativo: true, email: { not: '' } },
+      select: { nome: true, email: true },
+    });
 
     const solicitacao = await this.prisma.emergencyRequest.create({
       data: { clienteId, status: EM_ABERTO },
     });
 
-    this.logger.log(`Emergência solicitada pelo cliente ${clienteId}`);
+    await Promise.allSettled(
+      farmaceuticos.map((farm) =>
+        this.mail.sendEmergencyAlert(farm.email, farm.nome, {
+          pacienteNome: cliente?.nome ?? 'Paciente',
+          criadoEm: solicitacao.criadoEm.toLocaleString('pt-BR'),
+        }),
+      ),
+    );
+
+    this.logger.log(`Emergência solicitada pelo cliente ${clienteId}; ${farmaceuticos.length} farmacêutico(s) notificado(s)`);
     return solicitacao;
   }
 
@@ -105,7 +120,18 @@ export class EmergencyService {
       throw new ConflictException('Esta solicitação foi aceita por outro farmacêutico.');
     }
 
-    this.logger.log(`Emergência ${requestId} aceita por ${farmaceuticoId}`);
+    const inicioBloqueio = new Date();
+    const fimBloqueio = new Date(inicioBloqueio.getTime() + DURACAO_MAX_MIN * 60_000);
+    await this.prisma.availabilityBlockout.create({
+      data: {
+        farmaceuticoId,
+        inicio: inicioBloqueio,
+        fim: fimBloqueio,
+        motivo: `Emergência ${requestId}`,
+      },
+    });
+
+    this.logger.log(`Emergência ${requestId} aceita por ${farmaceuticoId}; agenda bloqueada até ${fimBloqueio.toISOString()}`);
     return {
       ...aceito,
       roomUrl: `https://meet.jit.si/${aceito.roomSlug}`,
@@ -143,10 +169,19 @@ export class EmergencyService {
       }
     }
 
-    return this.prisma.emergencyRequest.update({
+    const request = await this.prisma.emergencyRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new BadRequestException('Solicitação não encontrada.');
+
+    const atualizado = await this.prisma.emergencyRequest.update({
       where: { id: requestId },
       data: { status: dto.status, encerradoEm: new Date(), motivoEncerramento: dto.motivoEncerramento?.trim() },
     });
+
+    await this.prisma.availabilityBlockout.deleteMany({
+      where: { motivo: `Emergência ${requestId}` },
+    });
+
+    return atualizado;
   }
 
   // ---------- Expiração (chamado pelo scheduler a cada minuto) ----------
@@ -158,14 +193,31 @@ export class EmergencyService {
   async expirarTodas() {
     const limite = new Date(Date.now() - DURACAO_MAX_MIN * 60_000);
 
-    const abertas = await this.prisma.emergencyRequest.updateMany({
+    const abertasParaExpirar = await this.prisma.emergencyRequest.findMany({
       where: { status: EM_ABERTO, criadoEm: { lt: limite } },
+      include: { cliente: { select: { nome: true, email: true } } },
+    });
+    const abertas = await this.prisma.emergencyRequest.updateMany({
+      where: { id: { in: abertasParaExpirar.map((r) => r.id) }, status: EM_ABERTO },
       data: { status: EXPIRADA, encerradoEm: new Date(), motivoEncerramento: 'Expirou por tempo limite' },
     });
 
-    const atendidas = await this.prisma.emergencyRequest.updateMany({
+    const atendidasParaExpirar = await this.prisma.emergencyRequest.findMany({
       where: { status: ATENDIDA, iniciadoEm: { not: null, lt: limite } },
+    });
+    const atendidas = await this.prisma.emergencyRequest.updateMany({
+      where: { id: { in: atendidasParaExpirar.map((r) => r.id) }, status: ATENDIDA },
       data: { status: EXPIRADA, encerradoEm: new Date(), motivoEncerramento: 'Expirou por tempo limite' },
+    });
+
+    await Promise.allSettled(
+      abertasParaExpirar.map((r) =>
+        this.mail.sendEmergencyUnavailable(r.cliente.email, r.cliente.nome, r.criadoEm.toLocaleString('pt-BR')),
+      ),
+    );
+
+    await this.prisma.availabilityBlockout.deleteMany({
+      where: { motivo: { in: atendidasParaExpirar.map((r) => `Emergência ${r.id}`) } },
     });
 
     if (abertas.count + atendidas.count > 0) {

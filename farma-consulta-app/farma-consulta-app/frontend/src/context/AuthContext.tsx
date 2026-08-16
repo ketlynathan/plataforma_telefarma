@@ -18,6 +18,12 @@ export interface User {
   doencasCronicas?: string;
   alergias?: string;
   medicamentosUso?: string;
+  tratamento?: string;
+  crf?: string;
+  banco?: string;
+  agencia?: string;
+  contaBancaria?: string;
+  chavePix?: string;
 }
 
 interface AuthContextValue {

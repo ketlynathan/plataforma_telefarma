@@ -25,6 +25,13 @@ model User {
   alergias          String?
   medicamentosUso   String?  @map("medicamentos_uso")
 
+  tratamento        String?  @map("tratamento")
+  crf               String?  @map("crf")
+  banco             String?  @map("banco")
+  agencia           String?  @map("agencia")
+  contaBancaria     String?  @map("conta_bancaria")
+  chavePix          String?  @map("chave_pix")
+
   // Novos campos (adição incremental, seguros em produção)
   ativo                Boolean  @default(true)   @map("ativo")
   disponivelEmergencia Boolean  @default(false)  @map("disponivel_emergencia")

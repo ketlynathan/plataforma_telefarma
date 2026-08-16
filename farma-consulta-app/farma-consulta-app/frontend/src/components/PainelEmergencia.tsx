@@ -63,8 +63,8 @@ export function PainelEmergencia() {
       <h3 style={{ color: 'var(--danger-color)' }}>Emergência farmacêutica</h3>
       <p style={{ fontSize: 14 }}>
         {isCliente
-          ? 'Solicite atendimento imediato. Um farmacêutico disponível para emergências verá sua solicitação e entrará em contato pela sala de vídeo.'
-          : 'Atenda solicitações de emergência em aberto. A sala de vídeo é criada automaticamente ao aceitar.'}
+          ? 'Solicite atendimento imediato. Todos os farmacêuticos ativos serão avisados e poderão entrar na chamada se conseguirem assumir o atendimento.'
+          : 'Atenda solicitações de emergência em aberto. Mesmo indisponível na agenda, você pode aceitar se conseguir assumir a chamada.'}
       </p>
 
       {erro && <div className="fc-alert error">{erro}</div>}
@@ -83,14 +83,17 @@ export function PainelEmergencia() {
               )}
               {minhaEmergencia.status === 'EM_ABERTO' && (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Aguardando um farmacêutico. Solicitações em aberto expiram em 30 minutos.
+                  Aguardando um farmacêutico. Todos os ativos foram avisados; a solicitação expira em 30 minutos.
                 </p>
               )}
             </div>
           ) : (
-            <button className="fc-button danger" onClick={solicita} disabled={carregando}>
-              Solicitar emergência agora
-            </button>
+            <>
+              {minhaEmergencia?.status === 'EXPIRADA' && <div className="fc-alert error">Nenhum farmacêutico conseguiu atender sua solicitação dentro do prazo.</div>}
+              <button className="fc-button danger" onClick={solicita} disabled={carregando}>
+                Solicitar emergência agora
+              </button>
+            </>
           )}
         </>
       )}

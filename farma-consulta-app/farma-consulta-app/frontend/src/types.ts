@@ -6,9 +6,13 @@ export interface Consulta {
   hora: string;
   status: ConsultaStatus;
   observacoes?: string;
-  farmaceutico?: { id: string; nome: string };
+  farmaceutico?: { id: string; nome: string; tratamento?: string | null; crf?: string | null };
   roomSlug?: string;
   roomToken?: string;
+}
+
+export function formatFarmaceutico(nome: string, tratamento?: string | null, crf?: string | null): string {
+  return `${tratamento ? `${tratamento} ` : ''}${nome}${crf ? ` — CRF ${crf}` : ''}`;
 }
 
 export type ConsultaStatus =
@@ -50,6 +54,8 @@ export interface Mensagem {
 export interface SlotFarmaceutico {
   farmaceuticoId: string;
   farmaceuticoNome: string;
+  farmaceuticoTratamento?: string | null;
+  farmaceuticoCrf?: string | null;
   horariosLivres: string[];
 }
 

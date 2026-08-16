@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { consultasApi, messagesApi } from '../../api/endpoints';
-import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
+import { Consulta, CONSULTA_STATUS_LABELS, formatFarmaceutico } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
 
 function isoToBR(iso: string): string {
@@ -85,7 +85,7 @@ export function ConsultasPage() {
               .sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
               .map((c) => (
                 <tr key={c.id}>
-                  <td>{c.farmaceutico?.nome ?? '—'}</td>
+                  <td>{c.farmaceutico ? formatFarmaceutico(c.farmaceutico.nome, c.farmaceutico.tratamento, c.farmaceutico.crf) : '—'}</td>
                   <td>{isoToBR(c.data)}</td>
                   <td>{c.hora}</td>
                   <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>

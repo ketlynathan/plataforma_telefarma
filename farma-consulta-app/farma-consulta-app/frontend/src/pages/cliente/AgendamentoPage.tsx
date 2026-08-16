@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { availabilityApi, consultasApi } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
-import { SlotFarmaceutico } from '../../types';
+import { SlotFarmaceutico, formatFarmaceutico } from '../../types';
 
 function addDays(n: number): string {
   const d = new Date();
@@ -118,7 +118,7 @@ const handleSubmit = async (e: FormEvent) => {
                 .filter((s) => s.horariosLivres.length > 0)
                 .map((s) => (
                   <option key={s.farmaceuticoId} value={s.farmaceuticoId}>
-                    {s.farmaceuticoNome} ({s.horariosLivres.length} horário(s) livre(s))
+                    {formatFarmaceutico(s.farmaceuticoNome, s.farmaceuticoTratamento, s.farmaceuticoCrf)} ({s.horariosLivres.length} horário(s) livre(s))
                   </option>
                 ))}
             </select>
