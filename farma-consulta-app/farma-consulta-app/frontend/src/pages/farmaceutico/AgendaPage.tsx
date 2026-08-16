@@ -15,6 +15,7 @@ function SlotEditor({ onSave }: { onSave: () => void }) {
     DIAS.map((_, diaSemana) => ({ diaSemana, horaInicio: '08:00', horaFim: '12:00', ativo: false })),
   );
   const [salvando, setSalvando] = useState(false);
+  const [aberto, setAberto] = useState(true);
 
   useEffect(() => {
     availabilityApi
@@ -24,13 +25,16 @@ function SlotEditor({ onSave }: { onSave: () => void }) {
         data.forEach((s) => {
           mapa[s.diaSemana] = s;
         });
-        setSlots(
-          DIAS.map((_, diaSemana) =>
-            mapa[diaSemana] ?? { diaSemana, horaInicio: '08:00', horaFim: '12:00', ativo: false },
-          ),
+        const carregados = DIAS.map((_, diaSemana) =>
+          mapa[diaSemana] ?? { diaSemana, horaInicio: '08:00', horaFim: '12:00', ativo: false },
         );
+        setSlots(carregados);
+        // Se já existe disponibilidade configurada, começa recolhido.
+        setAberto(!carregados.some((s) => s.ativo));
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Falha ao carregar disponibilidade', err);
+      });
   }, []);
 
   const salva = async () => {
@@ -45,61 +49,99 @@ function SlotEditor({ onSave }: { onSave: () => void }) {
         }));
       await availabilityApi.update(payload);
       onSave();
-    } catch {
-      // aviso silencioso
+      setAberto(false);
+    } catch (err) {
+      console.error('Falha ao salvar disponibilidade', err);
     } finally {
       setSalvando(false);
     }
   };
 
+  const diasAtivos = slots.filter((s) => s.ativo);
+
   return (
     <div style={{ marginBottom: 24 }}>
-      <h3>Disponibilidade semanal</h3>
-      <table className="fc-table">
-        <thead>
-          <tr>
-            <th>Dia</th>
-            <th>Ativo</th>
-            <th>Início</th>
-            <th>Fim</th>
-          </tr>
-        </thead>
-        <tbody>
-          {slots.map((s, i) => (
-            <tr key={s.diaSemana}>
-              <td>{DIAS[s.diaSemana]}</td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={s.ativo ?? false}
-                  onChange={(e) =>
-                    setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, ativo: e.target.checked } : p)))
-                  }
-                />
-              </td>
-              <td>
-                <input
-                  className="fc-input"
-                  type="time"
-                  value={s.horaInicio}
-                  onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaInicio: e.target.value } : p)))}
-                />
-              </td>
-              <td>
-                <input
-                  className="fc-input"
-                  type="time"
-                  value={s.horaFim}
-                  onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaFim: e.target.value } : p)))}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button className="fc-button primary" style={{ marginTop: 12 }} onClick={salva} disabled={salvando}>
-        {salvando ? 'Salvando...' : 'Salvar disponibilidade'}
-      </button>
+      <div
+        onClick={() => setAberto((prev) => !prev)}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>Disponibilidade semanal</h3>
+          {!aberto && (
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+              {diasAtivos.length === 0
+                ? 'Nenhum dia ativo configurado.'
+                : diasAtivos.map((s) => `${DIAS[s.diaSemana]} ${s.horaInicio}-${s.horaFim}`).join(' · ')}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          className="fc-button secondary"
+          style={{ width: 'auto', padding: '0.4rem 1rem' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setAberto((prev) => !prev);
+          }}
+        >
+          {aberto ? 'Recolher' : 'Editar'}
+        </button>
+      </div>
+
+      {aberto && (
+        <>
+          <table className="fc-table" style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Dia</th>
+                <th>Ativo</th>
+                <th>Início</th>
+                <th>Fim</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slots.map((s, i) => (
+                <tr key={s.diaSemana}>
+                  <td>{DIAS[s.diaSemana]}</td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={s.ativo ?? false}
+                      onChange={(e) =>
+                        setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, ativo: e.target.checked } : p)))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="fc-input"
+                      type="time"
+                      value={s.horaInicio}
+                      onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaInicio: e.target.value } : p)))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="fc-input"
+                      type="time"
+                      value={s.horaFim}
+                      onChange={(e) => setSlots((prev) => prev.map((p, idx) => (idx === i ? { ...p, horaFim: e.target.value } : p)))}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button className="fc-button primary" style={{ marginTop: 12, width: 'auto', padding: '0.6rem 1.5rem' }} onClick={salva} disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar disponibilidade'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
