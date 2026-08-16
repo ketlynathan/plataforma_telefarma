@@ -10,28 +10,20 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
-
       - key: JWT_SECRET
         generateValue: true
-
       - key: JWT_EXPIRES_IN
         value: 7d
-
       - key: FRONTEND_URL
-        value: https://farma-consulta-frontend-wxvx.onrender.com
-
+        value: https://farma-consulta-frontend-wxvx.onrender.com  # <-- ajustar aqui
       - key: SMTP_HOST
         sync: false
-
       - key: SMTP_PORT
         sync: false
-
       - key: SMTP_USER
         sync: false
-
       - key: SMTP_PASS
         sync: false
-
       - key: SMTP_FROM
         sync: false
 
@@ -44,7 +36,7 @@ services:
 
     envVars:
       - key: VITE_API_URL
-        value: https://farma-consulta-backend-wxvx.onrender.com/api
+        value: https://SEU-BACKEND-REAL.onrender.com/api   # <-- ajustar aqui
 
     routes:
       - type: rewrite
