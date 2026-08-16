@@ -73,6 +73,30 @@ export class EmergencyService {
     return {
       ...request,
       roomUrl: request.roomSlug ? `https://meet.jit.si/${request.roomSlug}` : null,
+      salaPronta: Boolean(request.salaAbertaEm && request.roomSlug),
+    };
+  }
+
+  async abrirSala(requestId: string, farmaceuticoId: string) {
+    const request = await this.prisma.emergencyRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new BadRequestException('Solicitação não encontrada.');
+    if (request.farmaceuticoId !== farmaceuticoId || request.status !== ATENDIDA) {
+      throw new ForbiddenException('Esta emergência não está vinculada a você.');
+    }
+
+    const roomSlug = request.roomSlug ?? `farma-emergencia-${crypto.randomBytes(6).toString('hex')}`;
+    const atualizado = await this.prisma.emergencyRequest.update({
+      where: { id: requestId },
+      data: { roomSlug, salaAbertaEm: new Date() },
+      include: { cliente: { select: { nome: true } } },
+    });
+
+    this.logger.log(`Sala de emergência ${requestId} aberta por ${farmaceuticoId}; paciente ${atualizado.cliente.nome} notificado por polling.`);
+    return {
+      ...atualizado,
+      roomUrl: `https://meet.jit.si/${roomSlug}`,
+      salaPronta: true,
+      notificacaoPaciente: 'O farmacêutico abriu a sala. Você já pode entrar na chamada.',
     };
   }
 
@@ -107,7 +131,6 @@ export class EmergencyService {
           status: ATENDIDA,
           farmaceuticoId,
           aceitoEm: new Date(),
-          roomSlug: `farma-emergencia-${crypto.randomBytes(6).toString('hex')}`,
         },
       });
       if (atualizado.count === 0) return null;
@@ -139,7 +162,9 @@ export class EmergencyService {
     this.logger.log(`Emergência ${requestId} aceita por ${farmaceuticoId}; agenda bloqueada até ${fimBloqueio.toISOString()}`);
     return {
       ...aceito,
-      roomUrl: `https://meet.jit.si/${aceito.roomSlug}`,
+      roomUrl: null,
+      salaPronta: false,
+      notificacaoPaciente: 'O farmacêutico aceitou a emergência e abrirá a sala em seguida.',
     };
   }
 

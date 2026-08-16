@@ -135,3 +135,8 @@ table.fc-table th { background: color-mix(in srgb, var(--secondary-background-co
   .fc-grid-2, .fc-grid-3 { grid-template-columns: 1fr; }
   .fc-topbar { flex-direction: column; align-items: stretch; }
 }
+
+/* Compositor de mensagens: campo amplo e botão compacto. */
+.fc-chat form { align-items: center; }
+.fc-chat form .fc-input { width: auto; min-width: 0; flex: 1 1 auto; }
+.fc-chat form .fc-button { width: auto; min-width: 84px; flex: 0 0 auto; }

@@ -83,6 +83,9 @@ export interface EmergencyRequest {
   cliente?: { id: string; nome: string; email: string };
   farmaceutico?: { id: string; nome: string } | null;
   roomUrl?: string;
+  salaAbertaEm?: string | null;
+  salaPronta?: boolean;
+  notificacaoPaciente?: string;
 }
 
 export const EMERGENCY_STATUS_LABELS: Record<string, string> = {

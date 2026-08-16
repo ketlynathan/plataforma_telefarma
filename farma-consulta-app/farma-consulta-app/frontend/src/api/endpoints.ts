@@ -75,6 +75,7 @@ export const emergencyApi = {
   minha: () => api.get<EmergencyRequest | null>('/emergency/mine'),
   open: () => api.get<EmergencyRequest[]>('/emergency/open'),
   accept: (id: string) => api.post<EmergencyRequest>(`/emergency/${id}/accept`),
+  openRoom: (id: string) => api.post<EmergencyRequest>(`/emergency/${id}/open-room`),
   start: (id: string) => api.post(`/emergency/${id}/start`),
   close: (id: string, payload: { status: string; motivoEncerramento?: string }) =>
     api.patch(`/emergency/${id}/close`, payload),

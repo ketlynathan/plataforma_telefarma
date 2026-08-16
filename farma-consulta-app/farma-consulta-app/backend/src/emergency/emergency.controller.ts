@@ -39,6 +39,13 @@ export class EmergencyController {
     return this.emergencyService.aceitar(id, user.id);
   }
 
+  /** Farmacêutico: abre/reabre a sala e sinaliza ao paciente que pode entrar. */
+  @Post(':id/open-room')
+  @Roles('farmaceutico')
+  abrirSala(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.emergencyService.abrirSala(id, user.id);
+  }
+
   /** Farmacêutico: inicia o atendimento. */
   @Post(':id/start')
   @Roles('farmaceutico')
