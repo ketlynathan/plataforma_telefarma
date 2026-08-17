@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { Consulta } from '../../types';
+import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
 import { PainelEmergencia } from '../../components/PainelEmergencia';
 
 export function FarmaceuticoDashboardPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const carrega = () => {
+    api
+      .get<Consulta[]>('/consultas')
+      .then(({ data }) => setConsultas(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
-    api.get<Consulta[]>('/consultas').then(({ data }) => {
-      setConsultas(data);
-      setLoading(false);
-    });
+    carrega();
+    const interval = window.setInterval(carrega, 10_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   if (loading) return <p>Carregando...</p>;
@@ -59,7 +66,7 @@ export function FarmaceuticoDashboardPage() {
               <tr key={c.id}>
                 <td>{c.pacienteNome}</td>
                 <td>{c.hora}</td>
-                <td>{c.status}</td>
+                <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
               </tr>
             ))}
           </tbody>

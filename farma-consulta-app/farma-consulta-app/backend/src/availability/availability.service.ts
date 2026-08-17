@@ -122,8 +122,10 @@ export class AvailabilityService {
       }),
     ]);
 
-    // Não ocupar slots do passado.
+    // Permite agendamento no mesmo dia, mas preserva uma antecedência mínima operacional.
     const agora = Date.now();
+    const hojeIso = new Date().toISOString().slice(0, 10);
+    const dataAnterior = dataIso < hojeIso;
 
     const resultado = farmaceuticos.map((farm) => {
       const minhasFaixas = disponibilidade.filter((d) => d.farmaceuticoId === farm.id);
@@ -146,8 +148,8 @@ export class AvailabilityService {
           const slotFim = slotInicio + DURACAO_SLOT_MIN;
           const slotTimestamp = alvo.getTime() + slotInicio * 60_000;
 
-          // Slot no passado ou começando em menos de 30 min não é ofertado.
-          if (slotTimestamp <= agora || slotTimestamp + 30 * 60_000 < agora) continue;
+          // O mesmo dia é permitido; slots que já começaram ou estão a menos de 30 min não são ofertados.
+          if (dataAnterior || slotTimestamp < agora + 30 * 60_000) continue;
 
           const bloqueado = meusBloqueios.some(
             (b) =>

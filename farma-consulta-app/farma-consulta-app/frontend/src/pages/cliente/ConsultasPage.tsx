@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { consultasApi, messagesApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, formatFarmaceutico } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
+import { SalaVideo } from '../../components/SalaVideo';
+import type { VideoRoomSession } from '../../types';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -12,14 +14,13 @@ function salaLiberada(consulta: Consulta): boolean {
   if (!consulta.farmaceuticoEntrouEm) return false;
   if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO') return false;
   const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
-  return Date.now() >= inicio.getTime();
+  const encerraEm = inicio.getTime() + 40 * 60_000;
+  return Date.now() <= encerraEm;
 }
 
 function avisoSala(consulta: Consulta): string | null {
   if (!consulta.farmaceuticoEntrouEm) return null;
-  const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
-  if (Date.now() < inicio.getTime()) return 'O farmacêutico já abriu a sala. A entrada será liberada no horário agendado; você já pode enviar mensagens.';
-  if (consulta.status === 'FARMACEUTICO_AGUARDANDO') return 'O farmacêutico está disponível. Use as mensagens para combinar a entrada, especialmente em caso de atraso.';
+  if (consulta.status === 'FARMACEUTICO_AGUARDANDO') return 'O farmacêutico abriu a sala. Você já pode entrar na mesma chamada ou enviar uma mensagem.';
   return null;
 }
 
@@ -28,7 +29,8 @@ export function ConsultasPage() {
   const [loading, setLoading] = useState(true);
   const [aberta, setAberta] = useState<string | null>(null);
   const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
-  const [room, setRoom] = useState<{ roomUrl: string; status: string } | null>(null);
+  const [room, setRoom] = useState<VideoRoomSession | null>(null);
+  const [roomError, setRoomError] = useState('');
   const [naoLidas, setNaoLidas] = useState(0);
 
   const carrega = async () => {
@@ -55,11 +57,22 @@ export function ConsultasPage() {
 
   const entraNaSala = async (id: string) => {
     setAberta(id);
+    setRoomError('');
     try {
       const { data } = await consultasApi.room(id);
-      setRoom({ roomUrl: data.roomUrl, status: data.status });
+      setRoom(data);
     } catch (err: any) {
-      setRoom({ roomUrl: '', status: err?.response?.data?.message ?? 'Erro ao abrir sala.' });
+      setRoom(null);
+      setRoomError(err?.response?.data?.message ?? 'Erro ao abrir sala.');
+    }
+  };
+
+  const marcaEntrada = async (id: string) => {
+    try {
+      await consultasApi.enterRoom(id);
+      await carrega();
+    } catch {
+      // O polling continuará refletindo o estado persistido.
     }
   };
 
@@ -67,6 +80,7 @@ export function ConsultasPage() {
     setAberta(null);
     setMensagemAberta(null);
     setRoom(null);
+    setRoomError('');
   };
 
   const mudaStatus = async (id: string, status: string) => {
@@ -145,15 +159,8 @@ export function ConsultasPage() {
         <div className="fc-modal" style={{ display: 'block' }}>
           <div className="fc-modal-content">
             <h2>{aberta ? 'Consulta' : 'Mensagens da consulta'}</h2>
-            {aberta && room?.roomUrl && (
-              <iframe
-                src={room.roomUrl}
-                allow="camera; microphone; fullscreen; display-capture; autoplay"
-                style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }}
-                title="Sala de consulta"
-              />
-            )}
-            {aberta && !room?.roomUrl && <div className="fc-alert info">{room?.status ?? 'A sala ainda não está liberada.'}</div>}
+            {aberta && room?.roomUrl && <SalaVideo session={room} onJoined={() => { if (aberta) void marcaEntrada(aberta); }} onClosed={fechaSala} />}
+            {aberta && !room?.roomUrl && <div className="fc-alert info">{roomError || 'A sala ainda não está liberada.'}</div>}
             <Mensagens consultaId={aberta ?? mensagemAberta!} />
             <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>
               Fechar

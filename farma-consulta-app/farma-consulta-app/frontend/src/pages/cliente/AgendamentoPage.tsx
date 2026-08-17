@@ -3,10 +3,18 @@ import { availabilityApi, consultasApi } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import { SlotFarmaceutico, formatFarmaceutico } from '../../types';
 
+function toLocalIso(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function addDays(n: number): string {
   const d = new Date();
+  d.setHours(12, 0, 0, 0);
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return toLocalIso(d);
 }
 
 function isoToBR(iso: string): string {
@@ -16,7 +24,7 @@ function isoToBR(iso: string): string {
 
 export function AgendamentoPage() {
   const { user } = useAuth();
-  const [data, setData] = useState(addDays(1));
+  const [data, setData] = useState(addDays(0));
   const [slots, setSlots] = useState<SlotFarmaceutico[]>([]);
   const [carregandoSlots, setCarregandoSlots] = useState(false);
   const [farmaceuticoId, setFarmaceuticoId] = useState('');
@@ -87,7 +95,7 @@ const handleSubmit = async (e: FormEvent) => {
           <input
             className="fc-input"
             type="date"
-            min={addDays(1)}
+            min={addDays(0)}
             max={addDays(30)}
             value={data}
             onChange={(e) => setData(e.target.value)}

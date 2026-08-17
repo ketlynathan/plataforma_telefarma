@@ -30,6 +30,34 @@ export class SchedulerService {
   @Cron('* * * * *')
   async expirarEmergencias() {
     await this.emergency.expirarTodas();
+    await this.marcarAtendimentosSemPaciente();
+  }
+
+  /**
+   * Se o farmacêutico abriu a sala, mas o paciente não entrou até 40 minutos
+   * depois do horário marcado, o atendimento é encerrado como falha.
+   */
+  private async marcarAtendimentosSemPaciente() {
+    const agora = new Date();
+    const consultas = await this.prisma.consulta.findMany({
+      where: {
+        status: 'FARMACEUTICO_AGUARDANDO',
+        farmaceuticoEntrouEm: { not: null },
+        clienteEntrouEm: null,
+      },
+    });
+
+    const vencidas = consultas.filter((consulta) => {
+      const inicio = new Date(`${consulta.data.toISOString().slice(0, 10)}T${consulta.hora}:00`);
+      return agora.getTime() > inicio.getTime() + 40 * 60_000;
+    });
+
+    if (vencidas.length === 0) return;
+    await this.prisma.consulta.updateMany({
+      where: { id: { in: vencidas.map((consulta) => consulta.id) }, status: 'FARMACEUTICO_AGUARDANDO' },
+      data: { status: 'FARMACEUTICO_AUSENTE' },
+    });
+    this.logger.log(`${vencidas.length} atendimento(s) marcado(s) como falha por ausência do paciente.`);
   }
 
   /**

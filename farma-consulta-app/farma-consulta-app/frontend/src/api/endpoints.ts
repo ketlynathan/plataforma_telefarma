@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Consulta, Mensagem, SlotFarmaceutico, AvailabilitySlot, EmergencyRequest } from '../types';
+import type { Consulta, Mensagem, SlotFarmaceutico, AvailabilitySlot, EmergencyRequest, VideoRoomSession } from '../types';
 
 // ---------- Auth / recuperação de senha ----------
 
@@ -43,8 +43,9 @@ export const consultasApi = {
   me: () => api.get<Consulta[]>('/consultas/me'),
   mine: () => api.get<Consulta[]>('/consultas'),
   pacientes: () => api.get('/consultas/pacientes'),
-  room: (id: string) => api.get<{ roomSlug: string; roomUrl: string; status: string; toleranciaMin?: number }>(`/consultas/${id}/room`),
-  newRoom: (id: string) => api.post<{ roomSlug: string; roomUrl: string; status?: string }>(`/consultas/${id}/new-room`),
+  room: (id: string) => api.get<VideoRoomSession>(`/consultas/${id}/room`),
+  newRoom: (id: string) => api.post<VideoRoomSession>(`/consultas/${id}/new-room`),
+  enterRoom: (id: string) => api.post<Consulta>(`/consultas/${id}/enter-room`),
   admitLate: (id: string) => api.post(`/consultas/${id}/admit-late`),
   closeRoom: (id: string) => api.post(`/consultas/${id}/close-room`),
   updateStatus: (id: string, status: string) =>

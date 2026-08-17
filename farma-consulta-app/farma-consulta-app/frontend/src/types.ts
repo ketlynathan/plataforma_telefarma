@@ -1,3 +1,18 @@
+export interface VideoRoomSession {
+  provider: 'jaas' | 'meet-jitsi';
+  domain: string;
+  roomName: string;
+  roomUrl: string;
+  scriptUrl?: string;
+  jwt?: string;
+  expiresAt?: string;
+  roomSlug: string;
+  status: ConsultaStatus;
+  farmaceuticoEntrouEm?: string | null;
+  clienteEntrouEm?: string | null;
+  toleranciaMin?: number;
+}
+
 export interface Consulta {
   id: string;
   pacienteNome: string;

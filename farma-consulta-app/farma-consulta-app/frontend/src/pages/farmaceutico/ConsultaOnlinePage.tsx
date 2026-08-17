@@ -1,29 +1,34 @@
 import { useEffect, useState } from 'react';
 import { consultasApi } from '../../api/endpoints';
-import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
+import { Consulta, CONSULTA_STATUS_LABELS, VideoRoomSession } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
+import { SalaVideo } from '../../components/SalaVideo';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 }
 
-const STATUS_PASSEIVEIS = ['AGENDADA', 'CONFIRMADA', 'CLIENTE_AGUARDANDO', 'FARMACEUTICO_AGUARDANDO', 'EM_ATENDIMENTO'];
-
 export function ConsultaOnlinePage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [aberta, setAberta] = useState<string | null>(null);
   const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
-  const [roomUrl, setRoomUrl] = useState('');
+  const [room, setRoom] = useState<VideoRoomSession | null>(null);
+  const [roomError, setRoomError] = useState('');
 
   const carrega = async () => {
     setCarregando(true);
     try {
       const { data } = await consultasApi.mine();
-      // Mostra consultas de hoje e futuras em aberto.
       const hoje = new Date().toISOString().slice(0, 10);
-      const filtradas = data.filter((c) => c.data.slice(0, 10) >= hoje && c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA');
+      const filtradas = data.filter(
+        (c) =>
+          c.data.slice(0, 10) >= hoje &&
+          c.status !== 'CANCELADA' &&
+          c.status !== 'CONCLUIDA' &&
+          c.status !== 'FARMACEUTICO_AUSENTE',
+      );
       setConsultas(filtradas.slice(0, 20));
     } catch {
       // erro silencioso
@@ -34,27 +39,29 @@ export function ConsultaOnlinePage() {
 
   useEffect(() => {
     carrega();
+    const interval = window.setInterval(carrega, 10_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   const entraSalaAtual = async (id: string) => {
     setAberta(id);
+    setRoom(null);
+    setRoomError('');
     try {
       const { data } = await consultasApi.room(id);
-      setRoomUrl(data.roomUrl);
+      setRoom(data);
       await carrega();
-    } catch {
-      setRoomUrl('');
+    } catch (err: any) {
+      setRoomError(err?.response?.data?.message ?? 'Não foi possível abrir a sala.');
     }
   };
 
-  const abreSalaExtra = async (id: string) => {
-    setAberta(id);
+  const marcaEntrada = async (id: string) => {
     try {
-      const { data } = await consultasApi.newRoom(id);
-      setRoomUrl(data.roomUrl);
+      await consultasApi.enterRoom(id);
       await carrega();
     } catch {
-      setRoomUrl('');
+      // O polling continuará refletindo o estado persistido.
     }
   };
 
@@ -63,42 +70,20 @@ export function ConsultaOnlinePage() {
       try {
         await consultasApi.closeRoom(aberta);
       } catch {
-        // Mesmo se a sala externa já tiver sido fechada, a janela local pode ser encerrada.
+        // Mesmo se a sala externa já tiver sido fechada, atualizamos a tela local.
       }
     }
     setAberta(null);
     setMensagemAberta(null);
-    setRoomUrl('');
+    setRoom(null);
+    setRoomError('');
     await carrega();
-  };
-
-  const admiteAtrasado = async (id: string) => {
-    try {
-      await consultasApi.admitLate(id);
-      await carrega();
-    } catch {
-      // erro silencioso
-    }
-  };
-
-  const passouTolerancia = (consulta: Consulta) => {
-    const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
-    return Date.now() > inicio.getTime() + (consulta.toleranciaMin ?? 15) * 60_000;
-  };
-
-  const mudaStatus = async (id: string, status: string) => {
-    try {
-      await consultasApi.updateStatus(id, status);
-      await carrega();
-    } catch {
-      // erro silencioso
-    }
   };
 
   return (
     <div>
       <h1>Consultas agendadas</h1>
-      <p>Abra a sala de vídeo para conduzir o atendimento e acompanhe as transições de status.</p>
+      <p>Abra a sala entre 30 minutos antes e 40 minutos depois do horário. O paciente receberá automaticamente o acesso à mesma chamada.</p>
 
       {carregando ? (
         <p>Carregando...</p>
@@ -124,32 +109,20 @@ export function ConsultaOnlinePage() {
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button className="fc-button primary" style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }} onClick={() => entraSalaAtual(c.id)}>
-                      {c.roomSlug ? 'Entrar na sala atual' : 'Abrir sala'}
+                    <button
+                      className="fc-button primary"
+                      style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }}
+                      onClick={() => entraSalaAtual(c.id)}
+                    >
+                      {c.farmaceuticoEntrouEm ? 'Entrar na sala atual' : 'Abrir atendimento'}
                     </button>
-                    <button className="fc-button secondary" style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }} onClick={() => abreSalaExtra(c.id)}>
-                      Abrir sala extra
-                    </button>
-                    <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => setMensagemAberta(c.id)}>
+                    <button
+                      className="fc-button"
+                      style={{ fontSize: 13, padding: '4px 10px' }}
+                      onClick={() => setMensagemAberta(c.id)}
+                    >
                       Mensagem
                     </button>
-                    {passouTolerancia(c) && (c.status === 'FARMACEUTICO_AGUARDANDO' || c.status === 'CLIENTE_AGUARDANDO') && (
-                      <button className="fc-button danger" style={{ fontSize: 13, padding: '4px 10px' }} onClick={() => admiteAtrasado(c.id)}>
-                        Admitir paciente atrasado
-                      </button>
-                    )}
-                    <select
-                      className="fc-select"
-                      style={{ fontSize: 13, padding: '3px 6px' }}
-                      value={c.status}
-                      onChange={(e) => mudaStatus(c.id, e.target.value)}
-                    >
-                      {STATUS_PASSEIVEIS.map((s) => (
-                        <option key={s} value={s}>{CONSULTA_STATUS_LABELS[s]}</option>
-                      ))}
-                      <option value="CONCLUIDA">Concluída</option>
-                      <option value="CANCELADA">Cancelada</option>
-                    </select>
                   </div>
                 </td>
               </tr>
@@ -162,10 +135,12 @@ export function ConsultaOnlinePage() {
         <div className="fc-modal" style={{ display: 'block' }}>
           <div className="fc-modal-content">
             <h2>{aberta ? 'Sala de atendimento' : 'Mensagens da consulta'}</h2>
-            {aberta && roomUrl && <iframe src={roomUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" style={{ width: '100%', height: 420, border: 'none', borderRadius: 8 }} title="Sala de consulta" />}
-            {aberta && !roomUrl && <div className="fc-alert error">Não foi possível criar a sala. Tente novamente.</div>}
+            {aberta && room && <SalaVideo session={room} onJoined={() => { if (aberta) void marcaEntrada(aberta); }} onClosed={() => { void fechaSala(); }} />}
+            {aberta && !room && <div className="fc-alert error">{roomError || 'Não foi possível criar a sala. Tente novamente.'}</div>}
             <Mensagens consultaId={aberta ?? mensagemAberta!} />
-            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>Fechar sala e atualizar status</button>
+            <button className="fc-button" style={{ marginTop: 12 }} onClick={fechaSala}>
+              Fechar sala e atualizar status
+            </button>
           </div>
         </div>
       )}

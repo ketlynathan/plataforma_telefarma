@@ -51,6 +51,12 @@ export class ConsultasController {
     return this.consultasService.newRoom(id, user);
   }
 
+  @Post(':id/enter-room')
+  @Roles('cliente', 'farmaceutico')
+  enterRoom(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.consultasService.enterRoom(id, user);
+  }
+
   @Post(':id/close-room')
   @Roles('farmaceutico')
   fecharSala(@Param('id') id: string, @CurrentUser() user: any) {

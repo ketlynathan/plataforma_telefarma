@@ -216,6 +216,8 @@ export function AgendaPage() {
 
   useEffect(() => {
     carrega();
+    const interval = window.setInterval(carrega, 10_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   return (

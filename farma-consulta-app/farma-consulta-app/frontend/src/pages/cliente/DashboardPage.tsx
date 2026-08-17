@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { Consulta } from '../../types';
+import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
 import { PainelEmergencia } from '../../components/PainelEmergencia';
 
 export function ClienteDashboardPage() {
@@ -11,18 +11,25 @@ export function ClienteDashboardPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const carrega = () => {
+    api
+      .get<Consulta[]>('/consultas/me')
+      .then(({ data }) => setConsultas(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
-    api.get<Consulta[]>('/consultas/me').then(({ data }) => {
-      setConsultas(data);
-      setLoading(false);
-    });
+    carrega();
+    const interval = window.setInterval(carrega, 10_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   if (loading) return <p>Carregando...</p>;
 
   const hojeStr = new Date().toISOString().slice(0, 10);
   const agendadas = consultas.filter((c) => c.data.slice(0, 10) >= hojeStr && c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA');
-  const realizadas = consultas.filter((c) => c.status === 'CONCLUIDA' || c.status === 'CANCELADA' || c.data.slice(0, 10) < hojeStr);
+  const realizadas = consultas.filter((c) => c.status === 'CONCLUIDA' || c.status === 'CANCELADA' || c.status === 'FARMACEUTICO_AUSENTE' || c.data.slice(0, 10) < hojeStr);
 
   return (
     <div>
@@ -74,7 +81,7 @@ export function ClienteDashboardPage() {
                 <tr key={c.id}>
                   <td>{c.data.slice(0, 10)}</td>
                   <td>{c.hora}</td>
-                  <td>{c.status}</td>
+                  <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                   <td>{c.observacoes}</td>
                 </tr>
               ))}

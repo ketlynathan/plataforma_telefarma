@@ -4,12 +4,24 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { MailService } from '../mail/mail.service';
+import { JaasService, VideoRoomSession } from './jaas.service';
 
 const DURACAO_SLOT_MIN = 60;
+const JANELA_ABERTURA_ANTES_MIN = 30;
+const JANELA_ABERTURA_DEPOIS_MIN = 40;
+const ANTECEDENCIA_AGENDAMENTO_MIN = 30;
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
+}
+
+function toDate(dataIso: string, hora: string): Date {
+  return new Date(`${dataIso}T${hora}:00`);
+}
+
+function formatIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 @Injectable()
@@ -19,19 +31,33 @@ export class ConsultasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly jaas: JaasService,
   ) {}
 
   // ---------- Criação com validação de disponibilidade (transação) ----------
 
   async create(paciente: { nome: string; email: string }, dto: CreateConsultaDto) {
     const dataIso = dto.data;
+    const dataConsulta = toDate(dataIso, '00:00');
+    const inicioConsulta = toDate(dataIso, dto.hora);
+    const agora = new Date();
+
+    if (Number.isNaN(dataConsulta.getTime()) || Number.isNaN(inicioConsulta.getTime())) {
+      throw new BadRequestException('Data ou horário inválido.');
+    }
+    if (!/^\d{2}:\d{2}$/.test(dto.hora) || toMinutes(dto.hora) >= 24 * 60) {
+      throw new BadRequestException('Horário inválido.');
+    }
+    if (inicioConsulta.getTime() < agora.getTime() + ANTECEDENCIA_AGENDAMENTO_MIN * 60_000) {
+      throw new BadRequestException(`O agendamento precisa ser feito com pelo menos ${ANTECEDENCIA_AGENDAMENTO_MIN} minutos de antecedência.`);
+    }
 
     const resultado = await this.prisma.$transaction(async (tx) => {
       // 1. Revalida o slot dentro da transação (evita corrida de reservas).
       const conflitantes = await tx.consulta.count({
         where: {
           farmaceuticoId: dto.farmaceuticoId,
-          data: new Date(`${dataIso}T00:00:00`),
+          data: dataConsulta,
           hora: dto.hora,
           status: { not: ConsultaStatus.CANCELADA },
         },
@@ -48,7 +74,33 @@ export class ConsultasService {
         throw new BadRequestException('Farmacêutico indisponível.');
       }
 
-      // 3. Gera sala Jitsi persistente (slug + token) atrelada à consulta.
+      const diaSemana = dataConsulta.getDay();
+      const horaInicioMin = toMinutes(dto.hora);
+      const horaFimMin = horaInicioMin + DURACAO_SLOT_MIN;
+      const [faixas, bloqueios] = await Promise.all([
+        tx.availability.findMany({
+          where: { farmaceuticoId: dto.farmaceuticoId, diaSemana, ativo: true },
+        }),
+        tx.availabilityBlockout.findMany({
+          where: {
+            farmaceuticoId: dto.farmaceuticoId,
+            inicio: { lt: new Date(inicioConsulta.getTime() + DURACAO_SLOT_MIN * 60_000) },
+            fim: { gt: inicioConsulta },
+          },
+        }),
+      ]);
+
+      const dentroDaAgenda = faixas.some(
+        (faixa) => horaInicioMin >= toMinutes(faixa.horaInicio) && horaFimMin <= toMinutes(faixa.horaFim),
+      );
+      if (!dentroDaAgenda) {
+        throw new BadRequestException('O horário escolhido não está na agenda disponível do farmacêutico.');
+      }
+      if (bloqueios.length > 0) {
+        throw new BadRequestException('O horário escolhido está bloqueado pelo farmacêutico.');
+      }
+
+      // 3. Gera sala persistente (slug + token) atrelada à consulta.
       const roomSlug = `farma-${dataIso.replace(/-/g, '')}-${dto.hora.replace(':', '')}-${dto.farmaceuticoId.slice(0, 8)}`;
       const roomToken = crypto.randomBytes(24).toString('hex');
 
@@ -133,111 +185,132 @@ export class ConsultasService {
     return consulta;
   }
 
+  /** Retorna a janela operacional da consulta: 30 min antes até 40 min depois. */
+  private getJanelaAtendimento(consulta: { data: Date; hora: string }) {
+    const dataIso = formatIsoDate(consulta.data);
+    const inicio = toDate(dataIso, consulta.hora);
+    return {
+      inicio,
+      abreEm: new Date(inicio.getTime() - JANELA_ABERTURA_ANTES_MIN * 60_000),
+      encerraEm: new Date(inicio.getTime() + JANELA_ABERTURA_DEPOIS_MIN * 60_000),
+    };
+  }
+
+  private validarJanelaAtendimento(consulta: { data: Date; hora: string; status: ConsultaStatus }) {
+    const janela = this.getJanelaAtendimento(consulta);
+    const agora = new Date();
+    if (agora < janela.abreEm) {
+      throw new BadRequestException(`A sala poderá ser aberta a partir de ${janela.abreEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
+    }
+    if (agora > janela.encerraEm && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
+      throw new BadRequestException('A janela para iniciar este atendimento terminou.');
+    }
+    return janela;
+  }
+
+  private async criarSessaoSala(
+    consulta: { roomSlug: string; status: ConsultaStatus; farmaceuticoEntrouEm: Date | null; clienteEntrouEm: Date | null; toleranciaMin: number },
+    user: { id: string; nome?: string; email?: string; tipo: string },
+  ) {
+    const session: VideoRoomSession = this.jaas.createSession(
+      consulta.roomSlug,
+      { id: user.id, nome: user.nome, email: user.email },
+      user.tipo === 'farmaceutico',
+    );
+    return {
+      ...session,
+      roomSlug: consulta.roomSlug,
+      status: consulta.status,
+      farmaceuticoEntrouEm: consulta.farmaceuticoEntrouEm,
+      clienteEntrouEm: consulta.clienteEntrouEm,
+      toleranciaMin: consulta.toleranciaMin,
+    };
+  }
+
   /**
-   * Retorna/gera a sala persistida da consulta.
-   * Só o cliente dono ou o farmacêutico da consulta podem entrar.
+   * Retorna a mesma sala persistida para os dois participantes.
+   * O farmacêutico pode abri-la 30 minutos antes até 40 minutos depois do horário.
    */
-  async getRoom(id: string, user: { id: string; email?: string; tipo: string }) {
-    const consulta = await this.prisma.consulta.findUnique({
+  async getRoom(id: string, user: { id: string; nome?: string; email?: string; tipo: string }) {
+    let consulta = await this.prisma.consulta.findUnique({
       where: { id },
       include: { farmaceutico: { select: { id: true } } },
     });
     if (!consulta) throw new BadRequestException('Consulta não encontrada.');
 
     const isCliente = user.tipo === 'cliente' && user.email === consulta.pacienteEmail;
-    const isFarmaceutico =
-      user.tipo === 'farmaceutico' && consulta.farmaceutico?.id === user.id;
-
-    if (!isCliente && !isFarmaceutico) {
-      throw new ForbiddenException('Você não tem acesso a esta consulta.');
-    }
-
-    if (consulta.status === ConsultaStatus.CANCELADA || consulta.status === ConsultaStatus.CONCLUIDA) {
+    const isFarmaceutico = user.tipo === 'farmaceutico' && consulta.farmaceutico?.id === user.id;
+    if (!isCliente && !isFarmaceutico) throw new ForbiddenException('Você não tem acesso a esta consulta.');
+    if (new Set<ConsultaStatus>([ConsultaStatus.CANCELADA, ConsultaStatus.CONCLUIDA, ConsultaStatus.FARMACEUTICO_AUSENTE]).has(consulta.status)) {
       throw new BadRequestException('Esta consulta não está disponível para entrada.');
     }
 
-    const dataIso = consulta.data.toISOString().slice(0, 10);
-    const inicio = new Date(`${dataIso}T${consulta.hora}:00`);
-    const limiteAtraso = new Date(inicio.getTime() + consulta.toleranciaMin * 60_000);
-    const agora = new Date();
-
-    if (isCliente) {
-      if (agora < inicio) {
-        throw new BadRequestException(`A sala estará disponível a partir de ${consulta.hora}.`);
-      }
-      if (!consulta.farmaceuticoEntrouEm) {
-        throw new BadRequestException('Aguardando o farmacêutico entrar na sala. Você pode enviar uma mensagem enquanto aguarda.');
-      }
-      if (agora > limiteAtraso && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
-        throw new BadRequestException('O prazo de tolerância terminou. Envie uma mensagem ao farmacêutico para solicitar o atendimento.');
-      }
+    const janela = this.validarJanelaAtendimento(consulta);
+    if (isCliente && !consulta.farmaceuticoEntrouEm) {
+      throw new BadRequestException('Aguardando o farmacêutico abrir a sala. Você pode enviar uma mensagem enquanto aguarda.');
     }
-
-    let roomSlug = consulta.roomSlug;
-    let roomToken = consulta.roomToken;
+    if (isCliente && new Date() > janela.encerraEm && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
+      throw new BadRequestException('A janela para entrada neste atendimento terminou.');
+    }
 
     const agoraEntrada = new Date();
     const updateData: any = {};
+    let roomSlug = consulta.roomSlug;
+    let roomToken = consulta.roomToken;
+    if (!roomSlug) {
+      const dataIso = formatIsoDate(consulta.data);
+      roomSlug = `farma-${dataIso.replace(/-/g, '')}-${consulta.hora.replace(':', '')}-${crypto.randomBytes(6).toString('hex')}`;
+      updateData.roomSlug = roomSlug;
+    }
+    if (!roomToken) updateData.roomToken = crypto.randomBytes(24).toString('hex');
     if (isFarmaceutico && !consulta.farmaceuticoEntrouEm) {
       updateData.farmaceuticoEntrouEm = agoraEntrada;
-      if (consulta.status === ConsultaStatus.AGENDADA || consulta.status === ConsultaStatus.CONFIRMADA) {
+      if (new Set<ConsultaStatus>([ConsultaStatus.AGENDADA, ConsultaStatus.CONFIRMADA, ConsultaStatus.CLIENTE_AGUARDANDO]).has(consulta.status)) {
         updateData.status = ConsultaStatus.FARMACEUTICO_AGUARDANDO;
       }
     }
-    if (isCliente && !consulta.clienteEntrouEm) {
-      updateData.clienteEntrouEm = agoraEntrada;
-      updateData.status = ConsultaStatus.EM_ATENDIMENTO;
-    }
 
-    if (!roomSlug || !roomToken || Object.keys(updateData).length > 0) {
-      roomSlug = roomSlug ?? `farma-${dataIso.replace(/-/g, '')}-${crypto.randomBytes(6).toString('hex')}`;
-      roomToken = roomToken ?? crypto.randomBytes(24).toString('hex');
-      await this.prisma.consulta.update({
+    if (Object.keys(updateData).length > 0) {
+      consulta = await this.prisma.consulta.update({
         where: { id },
-        data: { roomSlug, roomToken, ...updateData },
+        data: updateData,
+        include: { farmaceutico: { select: { id: true } } },
       });
     }
 
-    return {
-      roomSlug,
-      roomUrl: `https://meet.jit.si/${roomSlug}`,
-      status: updateData.status ?? consulta.status,
-      farmaceuticoEntrouEm: isFarmaceutico ? agoraEntrada : consulta.farmaceuticoEntrouEm,
-      clienteEntrouEm: isCliente ? agoraEntrada : consulta.clienteEntrouEm,
-      toleranciaMin: consulta.toleranciaMin,
-    };
+    return this.criarSessaoSala(consulta as any, user);
   }
 
-  /** Abre uma nova sala mantendo o vínculo com a consulta original (item 12). */
-  async newRoom(id: string, user: { id: string; tipo: string }) {
-    if (user.tipo !== 'farmaceutico') {
-      throw new ForbiddenException('Apenas o farmacêutico pode abrir nova sala.');
-    }
+  /** Marca a entrada efetiva no vídeo; o cliente só passa a Em atendimento após o evento de entrada do JaaS. */
+  async enterRoom(id: string, user: { id: string; nome?: string; email?: string; tipo: string }) {
     const consulta = await this.getConsultaOrThrow(id);
-        if (consulta.farmaceutico?.id !== user.id) {
-      throw new ForbiddenException('Esta consulta não pertence a você.');
-    }
-    if (consulta.status === ConsultaStatus.CANCELADA || consulta.status === ConsultaStatus.CONCLUIDA) {
-      throw new ConflictException('Não é possível abrir uma sala extra para uma consulta encerrada.');
-    }
-    const roomSlug = `farma-${crypto.randomBytes(6).toString('hex')}`;
-    const roomToken = crypto.randomBytes(24).toString('hex');
+    const isCliente = user.tipo === 'cliente' && user.email === consulta.pacienteEmail;
+    const isFarmaceutico = user.tipo === 'farmaceutico' && consulta.farmaceutico?.id === user.id;
+    if (!isCliente && !isFarmaceutico) throw new ForbiddenException('Você não tem acesso a esta consulta.');
+    this.validarJanelaAtendimento(consulta);
+    if (isCliente && !consulta.farmaceuticoEntrouEm) throw new BadRequestException('O farmacêutico ainda não abriu a sala.');
 
-    const statusAtual = consulta.status === ConsultaStatus.EM_ATENDIMENTO
-      ? ConsultaStatus.EM_ATENDIMENTO
-      : ConsultaStatus.FARMACEUTICO_AGUARDANDO;
-
-    await this.prisma.consulta.update({
+    const updateData: any = {};
+    if (isCliente && !consulta.clienteEntrouEm) {
+      updateData.clienteEntrouEm = new Date();
+      updateData.status = ConsultaStatus.EM_ATENDIMENTO;
+    }
+    if (isFarmaceutico && !consulta.farmaceuticoEntrouEm) {
+      updateData.farmaceuticoEntrouEm = new Date();
+      updateData.status = ConsultaStatus.FARMACEUTICO_AGUARDANDO;
+    }
+    if (Object.keys(updateData).length === 0) return consulta;
+    return this.prisma.consulta.update({
       where: { id },
-      data: {
-        roomSlug,
-        roomToken,
-        farmaceuticoEntrouEm: consulta.farmaceuticoEntrouEm ?? new Date(),
-        status: statusAtual,
-      },
+      data: updateData,
+      include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
     });
+  }
 
-    return { roomSlug, roomUrl: `https://meet.jit.si/${roomSlug}`, status: statusAtual };
+  /** Compatibilidade com clientes antigos: o botão de sala extra agora retorna a mesma sala persistida. */
+  async newRoom(id: string, user: { id: string; nome?: string; email?: string; tipo: string }) {
+    if (user.tipo !== 'farmaceutico') throw new ForbiddenException('Apenas o farmacêutico pode abrir a sala.');
+    return this.getRoom(id, user);
   }
 
   async fecharSala(id: string, user: { id: string; tipo: string }) {
@@ -247,7 +320,12 @@ export class ConsultasService {
 
     const status = consulta.status === ConsultaStatus.EM_ATENDIMENTO
       ? ConsultaStatus.CONCLUIDA
-      : consulta.status === ConsultaStatus.FARMACEUTICO_AGUARDANDO
+      : new Set<ConsultaStatus>([
+          ConsultaStatus.AGENDADA,
+          ConsultaStatus.CONFIRMADA,
+          ConsultaStatus.CLIENTE_AGUARDANDO,
+          ConsultaStatus.FARMACEUTICO_AGUARDANDO,
+        ]).has(consulta.status)
         ? ConsultaStatus.FARMACEUTICO_AUSENTE
         : consulta.status;
 
