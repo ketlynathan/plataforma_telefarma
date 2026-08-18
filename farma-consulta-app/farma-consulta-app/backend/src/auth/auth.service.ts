@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { DEFAULT_TIME_ZONE, isValidTimeZone } from '../common/timezone';
 
 function sanitize(user: any) {
   const { senha, ...rest } = user;
@@ -31,6 +32,7 @@ export class AuthService {
         senha: hashed,
         tipo: dto.tipo ?? 'cliente',
         telefone: dto.telefone?.trim() ?? '',
+        timezone: dto.timezone && isValidTimeZone(dto.timezone.trim()) ? dto.timezone.trim() : DEFAULT_TIME_ZONE,
       },
     });
 

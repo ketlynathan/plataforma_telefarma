@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { consultasApi, messagesApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, formatFarmaceutico } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { Mensagens } from '../../components/Mensagens';
 import { SalaVideo } from '../../components/SalaVideo';
 import type { VideoRoomSession } from '../../types';
-import { appDateTimeToDate } from '../../utils/timezone';
+import { appDateTimeToDate, formatConsultationTimes } from '../../utils/timezone';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -14,7 +15,9 @@ function isoToBR(iso: string): string {
 function salaLiberada(consulta: Consulta): boolean {
   if (!consulta.farmaceuticoEntrouEm) return false;
   if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO' && consulta.status !== 'FARMACEUTICO_AUSENTE') return false;
-  const inicio = appDateTimeToDate(consulta.data.slice(0, 10), consulta.hora);
+  const inicio = consulta.agendadoEmUtc
+    ? new Date(consulta.agendadoEmUtc)
+    : appDateTimeToDate(consulta.data.slice(0, 10), consulta.hora, consulta.agendaTimezone);
   const encerraEm = inicio.getTime() + 40 * 60_000;
   return Date.now() <= encerraEm;
 }
@@ -33,6 +36,7 @@ export function ConsultasPage() {
   const [room, setRoom] = useState<VideoRoomSession | null>(null);
   const [roomError, setRoomError] = useState('');
   const [naoLidas, setNaoLidas] = useState(0);
+  const { user } = useAuth();
 
   const carrega = async () => {
     setLoading(true);
@@ -119,8 +123,13 @@ export function ConsultasPage() {
               .map((c) => (
                 <tr key={c.id}>
                   <td>{c.farmaceutico ? formatFarmaceutico(c.farmaceutico.nome, c.farmaceutico.tratamento, c.farmaceutico.crf) : '—'}</td>
-                  <td>{isoToBR(c.data)}</td>
-                  <td>{c.hora}</td>
+                  <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userDate}</td>
+                  <td>
+                    <strong>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userTime}</strong>
+                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                      Agenda: {formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).agendaDate} {formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).agendaTime}
+                    </small>
+                  </td>
                   <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                   <td>{c.observacoes}</td>
                   <td>

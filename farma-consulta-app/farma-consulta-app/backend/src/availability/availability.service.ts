@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { dateOnlyToUtc, todayIso, zonedDateTimeToUtc } from '../common/timezone';
+import { DEFAULT_TIME_ZONE, dateOnlyToUtc, isValidTimeZone, todayIso, zonedDateTimeToUtc } from '../common/timezone';
 
 /** Slots fixos de 1 hora (padrão aprovado). */
 const DURACAO_SLOT_MIN = 60;
@@ -94,12 +94,12 @@ export class AvailabilityService {
   async getSlots(dataIso: string) {
     const alvo = dateOnlyToUtc(dataIso);
     const diaSemana = alvo.getUTCDay(); // 0=domingo, no fuso comercial
-    const fimDoDia = zonedDateTimeToUtc(dataIso, '23:59');
+    const fimDoDia = new Date(alvo.getTime() + 2 * 24 * 60 * 60_000);
 
     // Farmacêuticos ativos (por padrão todos, menos quem se desativar).
     const farmaceuticos = await this.prisma.user.findMany({
       where: { tipo: 'farmaceutico', ativo: true },
-      select: { id: true, nome: true, tratamento: true, crf: true },
+      select: { id: true, nome: true, tratamento: true, crf: true, timezone: true },
     });
 
     if (farmaceuticos.length === 0) return [];
@@ -125,15 +125,17 @@ export class AvailabilityService {
 
     // Permite agendamento no mesmo dia, mas preserva uma antecedência mínima operacional.
     const agora = Date.now();
-    const hojeIso = todayIso();
-    const dataAnterior = dataIso < hojeIso;
-
     const resultado = farmaceuticos.map((farm) => {
+      const agendaTimezone = isValidTimeZone(farm.timezone) ? farm.timezone : DEFAULT_TIME_ZONE;
+      const dataAnterior = dataIso < todayIso(agendaTimezone);
       const minhasFaixas = disponibilidade.filter((d) => d.farmaceuticoId === farm.id);
       const meusBloqueios = blockouts.filter((b) => b.farmaceuticoId === farm.id);
       const minhasConsultas = consultas
         .filter((c) => c.farmaceuticoId === farm.id)
-        .map((c) => ({ inicio: toMinutes(c.hora), fim: toMinutes(c.hora) + DURACAO_SLOT_MIN }));
+        .map((c) => {
+          const inicio = c.agendadoEmUtc ?? zonedDateTimeToUtc(dataIso, c.hora, agendaTimezone);
+          return { inicio, fim: new Date(inicio.getTime() + DURACAO_SLOT_MIN * 60_000) };
+        });
 
       const horariosLivres: string[] = [];
 
@@ -147,11 +149,11 @@ export class AvailabilityService {
           slotInicio += DURACAO_SLOT_MIN
         ) {
           const slotFim = slotInicio + DURACAO_SLOT_MIN;
-          const slotInicioDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotInicio));
-          const slotFimDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotFim));
+          const slotInicioDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotInicio), agendaTimezone);
+          const slotFimDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotFim), agendaTimezone);
 
-          // O mesmo dia é permitido; slots que já começaram ou estão a menos de 30 min não são ofertados.
-          if (dataAnterior || slotInicioDate.getTime() < agora + 30 * 60_000) continue;
+          // O mesmo dia é permitido; slots que já começaram ou estão a menos de 60 min não são ofertados.
+          if (dataAnterior || slotInicioDate.getTime() < agora + 60 * 60_000) continue;
 
           const bloqueado = meusBloqueios.some(
             (b) => b.inicio < slotFimDate && b.fim > slotInicioDate,
@@ -159,7 +161,7 @@ export class AvailabilityService {
           if (bloqueado) continue;
 
           const ocupado = minhasConsultas.some(
-            (c) => c.inicio < slotFim && c.fim > slotInicio,
+            (c) => c.inicio < slotFimDate && c.fim > slotInicioDate,
           );
           if (ocupado) continue;
 
@@ -173,6 +175,7 @@ export class AvailabilityService {
         farmaceuticoTratamento: farm.tratamento ?? null,
         farmaceuticoCrf: farm.crf ?? null,
         horariosLivres,
+        agendaTimezone,
       };
     });
 

@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
 import { PainelEmergencia } from '../../components/PainelEmergencia';
+import { consultationInstant, formatConsultationTimes } from '../../utils/timezone';
 
 export function ClienteDashboardPage() {
   const { user } = useAuth();
@@ -27,9 +28,8 @@ export function ClienteDashboardPage() {
 
   if (loading) return <p>Carregando...</p>;
 
-  const hojeStr = new Date().toISOString().slice(0, 10);
-  const agendadas = consultas.filter((c) => c.data.slice(0, 10) >= hojeStr && c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA');
-  const realizadas = consultas.filter((c) => c.status === 'CONCLUIDA' || c.status === 'CANCELADA' || c.status === 'FARMACEUTICO_AUSENTE' || c.data.slice(0, 10) < hojeStr);
+  const agendadas = consultas.filter((c) => consultationInstant(c.data, c.hora, c.agendaTimezone, c.agendadoEmUtc).getTime() >= Date.now() && c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA');
+  const realizadas = consultas.filter((c) => c.status === 'CONCLUIDA' || c.status === 'CANCELADA' || c.status === 'FARMACEUTICO_AUSENTE' || consultationInstant(c.data, c.hora, c.agendaTimezone, c.agendadoEmUtc).getTime() < Date.now());
 
   return (
     <div>
@@ -79,8 +79,8 @@ export function ClienteDashboardPage() {
               .sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
               .map((c) => (
                 <tr key={c.id}>
-                  <td>{c.data.slice(0, 10)}</td>
-                  <td>{c.hora}</td>
+                  <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userDate}</td>
+                  <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userTime}</td>
                   <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                   <td>{c.observacoes}</td>
                 </tr>

@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { TIMEZONE_OPTIONS } from '../../utils/timezone';
 
 export function PerfilPage() {
   const { user, refreshUser } = useAuth();
-  const [form, setForm] = useState({ tratamento: 'Dr.', nome: '', telefone: '', crf: '', banco: '', agencia: '', contaBancaria: '', chavePix: '' });
+  const [form, setForm] = useState({ tratamento: 'Dr.', nome: '', telefone: '', crf: '', banco: '', agencia: '', contaBancaria: '', chavePix: '', timezone: 'America/Sao_Paulo' });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -13,6 +14,7 @@ export function PerfilPage() {
     setForm({
       tratamento: user.tratamento ?? 'Dr.', nome: user.nome ?? '', telefone: user.telefone ?? '', crf: user.crf ?? '',
       banco: user.banco ?? '', agencia: user.agencia ?? '', contaBancaria: user.contaBancaria ?? '', chavePix: user.chavePix ?? '',
+      timezone: user.timezone ?? 'America/Sao_Paulo',
     });
   }, [user]);
 
@@ -38,6 +40,14 @@ export function PerfilPage() {
         <div className="fc-field"><label>E-mail</label><input className="fc-input" value={user?.email ?? ''} disabled /></div>
         <div className="fc-field"><label>Telefone</label><input className="fc-input" value={form.telefone} onChange={update('telefone')} /></div>
         <div className="fc-field"><label>CRF</label><input className="fc-input" value={form.crf} onChange={update('crf')} placeholder="Ex.: SP-123456" /></div>
+      </div>
+      <h3>Fuso da agenda</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Os horários das consultas serão definidos neste fuso e convertidos para o paciente quando ele estiver em outra região.</p>
+      <div className="fc-field">
+        <label>Região da agenda</label>
+        <select className="fc-select" value={form.timezone} onChange={update('timezone')}>
+          {TIMEZONE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
       </div>
       <h3>Dados bancários</h3>
       <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Campos opcionais, preparados para futuros repasses.</p>

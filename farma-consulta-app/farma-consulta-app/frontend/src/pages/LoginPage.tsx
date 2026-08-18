@@ -46,7 +46,8 @@ export function LoginPage() {
     }
     setSubmitting(true);
     try {
-      await register({ nome, email: regEmail, senha: regSenha, tipo, telefone });
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo';
+      await register({ nome, email: regEmail, senha: regSenha, tipo, telefone, timezone });
       setSuccess('Conta criada com sucesso. Agora voce ja pode entrar.');
       setMode('login');
     } catch (err: any) {

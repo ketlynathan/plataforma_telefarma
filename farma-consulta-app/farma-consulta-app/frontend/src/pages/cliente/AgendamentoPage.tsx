@@ -2,10 +2,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { availabilityApi, consultasApi } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import { SlotFarmaceutico, formatFarmaceutico } from '../../types';
-import { appTodayIso } from '../../utils/timezone';
+import { appTodayIso, formatConsultationTimes } from '../../utils/timezone';
 
-function addDays(n: number): string {
-  const [year, month, day] = appTodayIso().split('-').map(Number);
+function addDays(n: number, timezone?: string): string {
+  const [year, month, day] = appTodayIso(timezone).split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + n);
   return date.toISOString().slice(0, 10);
@@ -18,7 +18,7 @@ function isoToBR(iso: string): string {
 
 export function AgendamentoPage() {
   const { user } = useAuth();
-  const [data, setData] = useState(addDays(0));
+  const [data, setData] = useState('');
   const [slots, setSlots] = useState<SlotFarmaceutico[]>([]);
   const [carregandoSlots, setCarregandoSlots] = useState(false);
   const [farmaceuticoId, setFarmaceuticoId] = useState('');
@@ -46,8 +46,13 @@ export function AgendamentoPage() {
   }
 };
 
-useEffect(() => {
+  useEffect(() => {
+  if (!data && user) {
+    setData(addDays(0, user.timezone));
+    return;
+  }
   if (data) carregaSlots(data);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data]);
 
@@ -73,8 +78,8 @@ const handleSubmit = async (e: FormEvent) => {
   }
 };
 
-  const horariosDoFarmaceutico =
-    slots.find((s) => s.farmaceuticoId === farmaceuticoId)?.horariosLivres ?? [];
+  const slotDoFarmaceutico = slots.find((s) => s.farmaceuticoId === farmaceuticoId);
+  const horariosDoFarmaceutico = slotDoFarmaceutico?.horariosLivres ?? [];
 
   return (
     <div>
@@ -89,8 +94,8 @@ const handleSubmit = async (e: FormEvent) => {
           <input
             className="fc-input"
             type="date"
-            min={addDays(0)}
-            max={addDays(30)}
+            min={addDays(0, user?.timezone)}
+            max={addDays(30, user?.timezone)}
             value={data}
             onChange={(e) => setData(e.target.value)}
             required
@@ -139,11 +144,13 @@ const handleSubmit = async (e: FormEvent) => {
                   style={{ padding: '6px 14px', fontSize: 14 }}
                   onClick={() => setHora(h)}
                 >
-                  {h}
+                  {formatConsultationTimes(data, h, slotDoFarmaceutico?.agendaTimezone, user?.timezone).userTime} ({formatConsultationTimes(data, h, slotDoFarmaceutico?.agendaTimezone, user?.timezone).agendaTime} na agenda)
                 </button>
               ))}
             </div>
-            {hora && <p style={{ fontSize: 13, marginTop: 8 }}>Selecionado: {hora}</p>}
+            {hora && <p style={{ fontSize: 13, marginTop: 8 }}>
+              Selecionado: {formatConsultationTimes(data, hora, slotDoFarmaceutico?.agendaTimezone, user?.timezone).userDate} às {formatConsultationTimes(data, hora, slotDoFarmaceutico?.agendaTimezone, user?.timezone).userTime} no seu horário; {formatConsultationTimes(data, hora, slotDoFarmaceutico?.agendaTimezone, user?.timezone).agendaTime} na agenda.
+            </p>}
           </div>
         )}
 

@@ -3,6 +3,8 @@ import { api } from '../../api/client';
 import { Link } from 'react-router-dom';
 import { availabilityApi, consultasApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, AvailabilitySlot } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { formatConsultationTimes } from '../../utils/timezone';
 
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -205,6 +207,7 @@ function ConviteForm() {
 export function AgendaPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const carrega = () => {
     setLoading(true);
@@ -250,8 +253,13 @@ export function AgendaPage() {
               <tr key={c.id}>
                 <td>{c.pacienteNome}</td>
                 <td>{c.pacienteEmail}</td>
-                <td>{isoToBR(c.data)}</td>
-                <td>{c.hora}</td>
+                <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userDate}</td>
+                <td>
+                  <strong>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userTime}</strong>
+                  <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                    Agenda: {formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).agendaTime}
+                  </small>
+                </td>
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>{c.observacoes}</td>
                 <td>

@@ -14,6 +14,7 @@ model User {
   email           String  @unique
   senha           String
   tipo            String // "cliente" | "farmaceutico"
+  timezone        String  @default("America/Sao_Paulo") @map("timezone")
   telefone        String?
   cpf             String?
   dataNascimento  String? @map("data_nascimento")
@@ -78,7 +79,9 @@ model Consulta {
   observacoes   String?
 
   // Vínculo com o farmacêutico (item 14 - isolamento de agenda)
-  farmaceuticoId String? @map("farmaceutico_id")
+  farmaceuticoId String?   @map("farmaceutico_id")
+  agendaTimezone String    @default("America/Sao_Paulo") @map("agenda_timezone")
+  agendadoEmUtc  DateTime? @map("agendado_em_utc") @db.Timestamptz(3)
 
   // Sala Jitsi persistida (item 4 - cliente entra na consulta)
   roomSlug             String?   @map("room_slug")

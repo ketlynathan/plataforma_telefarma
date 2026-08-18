@@ -6,6 +6,8 @@ export interface VideoRoomSession {
   scriptUrl?: string;
   jwt?: string;
   expiresAt?: string;
+  agendaTimezone?: string;
+  agendadoEmUtc?: string | null;
   roomSlug: string;
   status: ConsultaStatus;
   farmaceuticoEntrouEm?: string | null;
@@ -27,6 +29,8 @@ export interface Consulta {
   farmaceuticoEntrouEm?: string | null;
   clienteEntrouEm?: string | null;
   toleranciaMin?: number;
+  agendaTimezone?: string;
+  agendadoEmUtc?: string | null;
 }
 
 export function formatFarmaceutico(nome: string, tratamento?: string | null, crf?: string | null): string {
@@ -75,6 +79,7 @@ export interface SlotFarmaceutico {
   farmaceuticoTratamento?: string | null;
   farmaceuticoCrf?: string | null;
   horariosLivres: string[];
+  agendaTimezone?: string;
 }
 
 export interface AvailabilitySlot {

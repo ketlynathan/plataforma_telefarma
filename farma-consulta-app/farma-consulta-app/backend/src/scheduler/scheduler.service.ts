@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { EmergencyService } from '../emergency/emergency.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { dateOnlyToUtc, isoDateFromDateOnly, todayIso, zonedDateTimeToUtc } from '../common/timezone';
+import { DEFAULT_TIME_ZONE, dateOnlyToUtc, isoDateFromDateOnly, isValidTimeZone, todayIso, zonedDateTimeToUtc } from '../common/timezone';
 
 @Injectable()
 export class SchedulerService {
@@ -49,7 +49,8 @@ export class SchedulerService {
     });
 
     const vencidas = consultas.filter((consulta) => {
-      const inicio = zonedDateTimeToUtc(isoDateFromDateOnly(consulta.data), consulta.hora);
+      const timezone = isValidTimeZone(consulta.agendaTimezone) ? consulta.agendaTimezone : DEFAULT_TIME_ZONE;
+      const inicio = consulta.agendadoEmUtc ?? zonedDateTimeToUtc(isoDateFromDateOnly(consulta.data), consulta.hora, timezone);
       return agora.getTime() > inicio.getTime() + 40 * 60_000;
     });
 

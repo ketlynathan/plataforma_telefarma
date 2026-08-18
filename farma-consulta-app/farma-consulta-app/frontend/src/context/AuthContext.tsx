@@ -8,6 +8,7 @@ export interface User {
   nome: string;
   email: string;
   tipo: UserTipo;
+  timezone?: string;
   telefone?: string;
   cpf?: string;
   dataNascimento?: string;
@@ -30,7 +31,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (email: string, senha: string) => Promise<void>;
-  register: (data: { nome: string; email: string; senha: string; tipo: UserTipo; telefone?: string }) => Promise<void>;
+  register: (data: { nome: string; email: string; senha: string; tipo: UserTipo; telefone?: string; timezone?: string }) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (payload: { nome: string; email: string; senha: string; tipo: UserTipo; telefone?: string }) => {
+  const register = async (payload: { nome: string; email: string; senha: string; tipo: UserTipo; telefone?: string; timezone?: string }) => {
     await api.post('/auth/register', payload);
   };
 

@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { TIMEZONE_OPTIONS } from '../../utils/timezone';
 
 export function PerfilPage() {
   const { user, refreshUser } = useAuth();
   const [form, setForm] = useState({
     nome: '', cpf: '', dataNascimento: '', telefone: '', cep: '',
     endereco: '', cidade: '', estado: '', doencasCronicas: '',
-    alergias: '', medicamentosUso: '',
+    alergias: '', medicamentosUso: '', timezone: 'America/Sao_Paulo',
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -26,6 +27,7 @@ export function PerfilPage() {
       doencasCronicas: user.doencasCronicas ?? '',
       alergias: user.alergias ?? '',
       medicamentosUso: user.medicamentosUso ?? '',
+      timezone: user.timezone ?? 'America/Sao_Paulo',
     });
   }, [user]);
 
@@ -92,6 +94,15 @@ export function PerfilPage() {
             <label>Estado</label>
             <input className="fc-input" value={form.estado} onChange={update('estado')} placeholder="SP" />
           </div>
+        </div>
+
+        <h3>Região e horários</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Escolha sua região para visualizar a consulta no seu horário local. O horário do farmacêutico também será mostrado como referência.</p>
+        <div className="fc-field">
+          <label>Meu fuso horário</label>
+          <select className="fc-select" value={form.timezone} onChange={update('timezone')}>
+            {TIMEZONE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
         </div>
 
         <h3>Dados de Saude</h3>

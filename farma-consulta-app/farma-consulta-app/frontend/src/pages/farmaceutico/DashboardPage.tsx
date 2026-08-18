@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { Consulta, CONSULTA_STATUS_LABELS } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { appTodayIso, formatConsultationTimes } from '../../utils/timezone';
 import { PainelEmergencia } from '../../components/PainelEmergencia';
 
 export function FarmaceuticoDashboardPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const carrega = () => {
     api
@@ -23,7 +26,7 @@ export function FarmaceuticoDashboardPage() {
 
   if (loading) return <p>Carregando...</p>;
 
-  const hojeStr = new Date().toISOString().slice(0, 10);
+  const hojeStr = appTodayIso(user?.timezone);
   const hoje = consultas.filter((c) => c.data.slice(0, 10) === hojeStr);
   const pacientesUnicos = new Set(consultas.map((c) => c.pacienteEmail)).size;
 
@@ -65,7 +68,7 @@ export function FarmaceuticoDashboardPage() {
             {[...hoje].sort((a, b) => a.hora.localeCompare(b.hora)).map((c) => (
               <tr key={c.id}>
                 <td>{c.pacienteNome}</td>
-                <td>{c.hora}</td>
+                <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userTime}</td>
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
               </tr>
             ))}

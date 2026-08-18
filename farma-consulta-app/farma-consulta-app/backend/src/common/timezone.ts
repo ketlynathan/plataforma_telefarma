@@ -1,10 +1,25 @@
-const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
+export const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
 
 /**
  * Fuso comercial da plataforma. Pode ser substituído por APP_TIMEZONE no Render,
  * mas não é inferido do celular de cada usuário.
  */
 export const APP_TIME_ZONE = process.env.APP_TIMEZONE?.trim() || DEFAULT_TIME_ZONE;
+
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function assertValidTimeZone(timeZone: string): string {
+  const normalized = timeZone.trim();
+  if (!isValidTimeZone(normalized)) throw new Error(`Fuso horário inválido: ${timeZone}`);
+  return normalized;
+}
 
 function partsInTimeZone(date: Date, timeZone = APP_TIME_ZONE) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -55,7 +70,7 @@ export function todayIso(timeZone = APP_TIME_ZONE): string {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-export function formatTimeInAppZone(date: Date, timeZone = APP_TIME_ZONE): string {
+export function formatTimeInZone(date: Date, timeZone = APP_TIME_ZONE): string {
   return new Intl.DateTimeFormat('pt-BR', {
     timeZone,
     hour: '2-digit',
@@ -64,6 +79,14 @@ export function formatTimeInAppZone(date: Date, timeZone = APP_TIME_ZONE): strin
 }
 
 export function formatDateInAppZone(date: Date, timeZone = APP_TIME_ZONE): string {
+  return formatDateInZone(date, timeZone);
+}
+
+export function formatTimeInAppZone(date: Date, timeZone = APP_TIME_ZONE): string {
+  return formatTimeInZone(date, timeZone);
+}
+
+export function formatDateInZone(date: Date, timeZone = APP_TIME_ZONE): string {
   return new Intl.DateTimeFormat('pt-BR', {
     timeZone,
     day: '2-digit',

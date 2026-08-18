@@ -12,6 +12,7 @@ export class UpdateUserDto {
   @IsOptional() @IsString() doencasCronicas?: string;
   @IsOptional() @IsString() alergias?: string;
   @IsOptional() @IsString() medicamentosUso?: string;
+  @IsOptional() @IsString() timezone?: string;
 
   @IsOptional() @IsIn(['Dr.', 'Dra.']) tratamento?: string;
   @IsOptional() @IsString() crf?: string;

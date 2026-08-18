@@ -114,7 +114,7 @@ export class MailService {
   async sendConsultationBooked(
     to: string,
     farmaceuticoNome: string,
-    consulta: { pacienteNome: string; data: string; hora: string; observacoes?: string | null },
+    consulta: { pacienteNome: string; data: string; hora: string; timezone?: string; observacoes?: string | null },
   ) {
     return this.dispatch({
       to,
@@ -122,7 +122,7 @@ export class MailService {
       html: baseHtml(
         'Nova consulta agendada',
         `<p>Olá, <strong>${farmaceuticoNome}</strong>.</p>
-         <p>Uma nova consulta foi agendada para <strong>${consulta.data}</strong>, às <strong>${consulta.hora}</strong>.</p>
+         <p>Uma nova consulta foi agendada para <strong>${consulta.data}</strong>, às <strong>${consulta.hora}</strong>${consulta.timezone ? ` (${consulta.timezone})` : ''}.</p>
          <p><strong>Paciente:</strong> ${consulta.pacienteNome}</p>
          <p><strong>Observações:</strong> ${consulta.observacoes || '—'}</p>
          <p>Acesse a plataforma para consultar os detalhes e entrar na sala de atendimento.</p>`,

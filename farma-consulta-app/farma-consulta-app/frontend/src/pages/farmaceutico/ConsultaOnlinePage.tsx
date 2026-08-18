@@ -3,7 +3,8 @@ import { consultasApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, VideoRoomSession } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
 import { SalaVideo } from '../../components/SalaVideo';
-import { appTodayIso } from '../../utils/timezone';
+import { useAuth } from '../../context/AuthContext';
+import { appTodayIso, formatConsultationTimes } from '../../utils/timezone';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -17,6 +18,7 @@ export function ConsultaOnlinePage() {
   const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
   const [room, setRoom] = useState<VideoRoomSession | null>(null);
   const [roomError, setRoomError] = useState('');
+  const { user } = useAuth();
 
   const carrega = async () => {
     setCarregando(true);
@@ -104,8 +106,13 @@ export function ConsultaOnlinePage() {
             {consultas.map((c) => (
               <tr key={c.id}>
                 <td>{c.pacienteNome}</td>
-                <td>{isoToBR(c.data)}</td>
-                <td>{c.hora}</td>
+                <td>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userDate}</td>
+                <td>
+                  <strong>{formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).userTime}</strong>
+                  <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                    Fuso da agenda: {formatConsultationTimes(c.data, c.hora, c.agendaTimezone, user?.timezone, c.agendadoEmUtc).agendaTime}
+                  </small>
+                </td>
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

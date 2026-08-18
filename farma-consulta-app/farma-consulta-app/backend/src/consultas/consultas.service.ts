@@ -5,20 +5,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { MailService } from '../mail/mail.service';
 import { JaasService, VideoRoomSession } from './jaas.service';
-import { APP_TIME_ZONE, dateOnlyToUtc, formatTimeInAppZone, isoDateFromDateOnly, zonedDateTimeToUtc } from '../common/timezone';
+import { APP_TIME_ZONE, DEFAULT_TIME_ZONE, dateOnlyToUtc, formatDateInZone, formatTimeInZone, isoDateFromDateOnly, isValidTimeZone, zonedDateTimeToUtc } from '../common/timezone';
 
 const DURACAO_SLOT_MIN = 60;
 const JANELA_ABERTURA_ANTES_MIN = 30;
 const JANELA_ABERTURA_DEPOIS_MIN = 40;
-const ANTECEDENCIA_AGENDAMENTO_MIN = 30;
+const ANTECEDENCIA_AGENDAMENTO_MIN = 60;
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 }
 
-function toDate(dataIso: string, hora: string): Date {
-  return zonedDateTimeToUtc(dataIso, hora);
+function toDate(dataIso: string, hora: string, timezone = APP_TIME_ZONE): Date {
+  return zonedDateTimeToUtc(dataIso, hora, timezone);
 }
 
 function formatIsoDate(date: Date): string {
@@ -40,17 +40,26 @@ export class ConsultasService {
   async create(paciente: { nome: string; email: string }, dto: CreateConsultaDto) {
     const dataIso = dto.data;
     const dataConsulta = dateOnlyToUtc(dataIso);
-    const inicioConsulta = zonedDateTimeToUtc(dataIso, dto.hora);
     const agora = new Date();
 
-    if (Number.isNaN(dataConsulta.getTime()) || Number.isNaN(inicioConsulta.getTime())) {
-      throw new BadRequestException('Data ou horário inválido.');
+    if (Number.isNaN(dataConsulta.getTime())) {
+      throw new BadRequestException('Data inválida.');
     }
     if (!/^\d{2}:\d{2}$/.test(dto.hora) || toMinutes(dto.hora) >= 24 * 60) {
       throw new BadRequestException('Horário inválido.');
     }
+
+    const farmacBase = await this.prisma.user.findUnique({
+      where: { id: dto.farmaceuticoId },
+      select: { tipo: true, ativo: true, timezone: true },
+    });
+    if (!farmacBase || farmacBase.tipo !== 'farmaceutico' || !farmacBase.ativo) {
+      throw new BadRequestException('Farmacêutico indisponível.');
+    }
+    const agendaTimezone = isValidTimeZone(farmacBase.timezone) ? farmacBase.timezone : DEFAULT_TIME_ZONE;
+    const inicioConsulta = zonedDateTimeToUtc(dataIso, dto.hora, agendaTimezone);
     if (inicioConsulta.getTime() < agora.getTime() + ANTECEDENCIA_AGENDAMENTO_MIN * 60_000) {
-      throw new BadRequestException(`O agendamento precisa ser feito com pelo menos ${ANTECEDENCIA_AGENDAMENTO_MIN} minutos de antecedência.`);
+      throw new BadRequestException(`O agendamento precisa ser feito com pelo menos ${ANTECEDENCIA_AGENDAMENTO_MIN} minutos de antecedência no horário da agenda (${agendaTimezone}).`);
     }
 
     const resultado = await this.prisma.$transaction(async (tx) => {
@@ -114,6 +123,8 @@ export class ConsultasService {
           status: ConsultaStatus.AGENDADA,
           observacoes: dto.observacoes?.trim() ?? '',
           farmaceuticoId: dto.farmaceuticoId,
+          agendaTimezone,
+          agendadoEmUtc: inicioConsulta,
           roomSlug,
           roomToken,
         },
@@ -130,6 +141,7 @@ export class ConsultasService {
         pacienteNome: paciente.nome,
         data: dataIso,
         hora: dto.hora,
+        timezone: agendaTimezone,
         observacoes: dto.observacoes,
       });
     }
@@ -187,9 +199,10 @@ export class ConsultasService {
   }
 
   /** Retorna a janela operacional da consulta: 30 min antes até 40 min depois. */
-  private getJanelaAtendimento(consulta: { data: Date; hora: string }) {
+  private getJanelaAtendimento(consulta: { data: Date; hora: string; agendaTimezone?: string; agendadoEmUtc?: Date | null }) {
     const dataIso = formatIsoDate(consulta.data);
-    const inicio = toDate(dataIso, consulta.hora);
+    const timezone = consulta.agendaTimezone && isValidTimeZone(consulta.agendaTimezone) ? consulta.agendaTimezone : APP_TIME_ZONE;
+    const inicio = consulta.agendadoEmUtc ?? toDate(dataIso, consulta.hora, timezone);
     return {
       inicio,
       abreEm: new Date(inicio.getTime() - JANELA_ABERTURA_ANTES_MIN * 60_000),
@@ -197,11 +210,12 @@ export class ConsultasService {
     };
   }
 
-  private validarJanelaAtendimento(consulta: { data: Date; hora: string; status: ConsultaStatus }) {
+  private validarJanelaAtendimento(consulta: { data: Date; hora: string; status: ConsultaStatus; agendaTimezone?: string; agendadoEmUtc?: Date | null }) {
     const janela = this.getJanelaAtendimento(consulta);
     const agora = new Date();
     if (agora < janela.abreEm) {
-      throw new BadRequestException(`A sala poderá ser aberta a partir de ${formatTimeInAppZone(janela.abreEm, APP_TIME_ZONE)}.`);
+      const timezone = consulta.agendaTimezone && isValidTimeZone(consulta.agendaTimezone) ? consulta.agendaTimezone : APP_TIME_ZONE;
+      throw new BadRequestException(`A sala poderá ser aberta a partir de ${formatTimeInZone(janela.abreEm, timezone)} (${timezone}).`);
     }
     if (agora > janela.encerraEm && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
       throw new BadRequestException('A janela para iniciar este atendimento terminou.');
@@ -210,7 +224,7 @@ export class ConsultasService {
   }
 
   private async criarSessaoSala(
-    consulta: { roomSlug: string; status: ConsultaStatus; farmaceuticoEntrouEm: Date | null; clienteEntrouEm: Date | null; toleranciaMin: number },
+    consulta: { roomSlug: string; status: ConsultaStatus; farmaceuticoEntrouEm: Date | null; clienteEntrouEm: Date | null; toleranciaMin: number; agendaTimezone?: string; agendadoEmUtc?: Date | null },
     user: { id: string; nome?: string; email?: string; tipo: string },
   ) {
     const session: VideoRoomSession = this.jaas.createSession(
@@ -225,6 +239,8 @@ export class ConsultasService {
       farmaceuticoEntrouEm: consulta.farmaceuticoEntrouEm,
       clienteEntrouEm: consulta.clienteEntrouEm,
       toleranciaMin: consulta.toleranciaMin,
+      agendaTimezone: consulta.agendaTimezone ?? APP_TIME_ZONE,
+      agendadoEmUtc: consulta.agendadoEmUtc ?? null,
     };
   }
 

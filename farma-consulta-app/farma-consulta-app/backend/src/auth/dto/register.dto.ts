@@ -20,4 +20,8 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   telefone?: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }
