@@ -3,6 +3,7 @@ import { consultasApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, VideoRoomSession } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
 import { SalaVideo } from '../../components/SalaVideo';
+import { appTodayIso } from '../../utils/timezone';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -21,13 +22,12 @@ export function ConsultaOnlinePage() {
     setCarregando(true);
     try {
       const { data } = await consultasApi.mine();
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = appTodayIso();
       const filtradas = data.filter(
         (c) =>
           c.data.slice(0, 10) >= hoje &&
           c.status !== 'CANCELADA' &&
-          c.status !== 'CONCLUIDA' &&
-          c.status !== 'FARMACEUTICO_AUSENTE',
+          c.status !== 'CONCLUIDA',
       );
       setConsultas(filtradas.slice(0, 20));
     } catch {
@@ -114,7 +114,7 @@ export function ConsultaOnlinePage() {
                       style={{ width: 'auto', fontSize: 13, padding: '4px 10px' }}
                       onClick={() => entraSalaAtual(c.id)}
                     >
-                      {c.farmaceuticoEntrouEm ? 'Entrar na sala atual' : 'Abrir atendimento'}
+                      {c.status === 'FARMACEUTICO_AUSENTE' ? 'Reabrir atendimento' : c.farmaceuticoEntrouEm ? 'Entrar na sala atual' : 'Abrir atendimento'}
                     </button>
                     <button
                       className="fc-button"

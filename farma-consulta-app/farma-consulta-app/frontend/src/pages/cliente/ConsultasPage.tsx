@@ -4,6 +4,7 @@ import { Consulta, CONSULTA_STATUS_LABELS, formatFarmaceutico } from '../../type
 import { Mensagens } from '../../components/Mensagens';
 import { SalaVideo } from '../../components/SalaVideo';
 import type { VideoRoomSession } from '../../types';
+import { appDateTimeToDate } from '../../utils/timezone';
 
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -12,15 +13,15 @@ function isoToBR(iso: string): string {
 
 function salaLiberada(consulta: Consulta): boolean {
   if (!consulta.farmaceuticoEntrouEm) return false;
-  if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO') return false;
-  const inicio = new Date(`${consulta.data.slice(0, 10)}T${consulta.hora}:00`);
+  if (consulta.status !== 'FARMACEUTICO_AGUARDANDO' && consulta.status !== 'EM_ATENDIMENTO' && consulta.status !== 'FARMACEUTICO_AUSENTE') return false;
+  const inicio = appDateTimeToDate(consulta.data.slice(0, 10), consulta.hora);
   const encerraEm = inicio.getTime() + 40 * 60_000;
   return Date.now() <= encerraEm;
 }
 
 function avisoSala(consulta: Consulta): string | null {
   if (!consulta.farmaceuticoEntrouEm) return null;
-  if (consulta.status === 'FARMACEUTICO_AGUARDANDO') return 'O farmacêutico abriu a sala. Você já pode entrar na mesma chamada ou enviar uma mensagem.';
+  if (consulta.status === 'FARMACEUTICO_AGUARDANDO' || consulta.status === 'FARMACEUTICO_AUSENTE') return 'O farmacêutico abriu a sala. Você já pode entrar na mesma chamada ou enviar uma mensagem.';
   return null;
 }
 

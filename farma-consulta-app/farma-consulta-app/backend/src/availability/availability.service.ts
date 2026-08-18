@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { dateOnlyToUtc, todayIso, zonedDateTimeToUtc } from '../common/timezone';
 
 /** Slots fixos de 1 hora (padrão aprovado). */
 const DURACAO_SLOT_MIN = 60;
@@ -91,9 +92,9 @@ export class AvailabilityService {
    * e retorna os horários livres de cada farmacêutico ativo para a data.
    */
   async getSlots(dataIso: string) {
-    const alvo = new Date(`${dataIso}T00:00:00`);
-    const diaSemana = alvo.getDay(); // 0=domingo
-    const fimDoDia = new Date(`${dataIso}T23:59:59`);
+    const alvo = dateOnlyToUtc(dataIso);
+    const diaSemana = alvo.getUTCDay(); // 0=domingo, no fuso comercial
+    const fimDoDia = zonedDateTimeToUtc(dataIso, '23:59');
 
     // Farmacêuticos ativos (por padrão todos, menos quem se desativar).
     const farmaceuticos = await this.prisma.user.findMany({
@@ -124,7 +125,7 @@ export class AvailabilityService {
 
     // Permite agendamento no mesmo dia, mas preserva uma antecedência mínima operacional.
     const agora = Date.now();
-    const hojeIso = new Date().toISOString().slice(0, 10);
+    const hojeIso = todayIso();
     const dataAnterior = dataIso < hojeIso;
 
     const resultado = farmaceuticos.map((farm) => {
@@ -146,15 +147,14 @@ export class AvailabilityService {
           slotInicio += DURACAO_SLOT_MIN
         ) {
           const slotFim = slotInicio + DURACAO_SLOT_MIN;
-          const slotTimestamp = alvo.getTime() + slotInicio * 60_000;
+          const slotInicioDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotInicio));
+          const slotFimDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotFim));
 
           // O mesmo dia é permitido; slots que já começaram ou estão a menos de 30 min não são ofertados.
-          if (dataAnterior || slotTimestamp < agora + 30 * 60_000) continue;
+          if (dataAnterior || slotInicioDate.getTime() < agora + 30 * 60_000) continue;
 
           const bloqueado = meusBloqueios.some(
-            (b) =>
-              toMinutes(`${String(b.inicio.getUTCHours()).padStart(2, '0')}:${String(b.inicio.getUTCMinutes()).padStart(2, '0')}`) < slotFim &&
-              toMinutes(`${String(b.fim.getUTCHours()).padStart(2, '0')}:${String(b.fim.getUTCMinutes()).padStart(2, '0')}`) > slotInicio,
+            (b) => b.inicio < slotFimDate && b.fim > slotInicioDate,
           );
           if (bloqueado) continue;
 

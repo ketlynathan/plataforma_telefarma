@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { MailService } from '../mail/mail.service';
 import { JaasService, VideoRoomSession } from './jaas.service';
+import { APP_TIME_ZONE, dateOnlyToUtc, formatTimeInAppZone, isoDateFromDateOnly, zonedDateTimeToUtc } from '../common/timezone';
 
 const DURACAO_SLOT_MIN = 60;
 const JANELA_ABERTURA_ANTES_MIN = 30;
@@ -17,11 +18,11 @@ function toMinutes(hhmm: string): number {
 }
 
 function toDate(dataIso: string, hora: string): Date {
-  return new Date(`${dataIso}T${hora}:00`);
+  return zonedDateTimeToUtc(dataIso, hora);
 }
 
 function formatIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return isoDateFromDateOnly(date);
 }
 
 @Injectable()
@@ -38,8 +39,8 @@ export class ConsultasService {
 
   async create(paciente: { nome: string; email: string }, dto: CreateConsultaDto) {
     const dataIso = dto.data;
-    const dataConsulta = toDate(dataIso, '00:00');
-    const inicioConsulta = toDate(dataIso, dto.hora);
+    const dataConsulta = dateOnlyToUtc(dataIso);
+    const inicioConsulta = zonedDateTimeToUtc(dataIso, dto.hora);
     const agora = new Date();
 
     if (Number.isNaN(dataConsulta.getTime()) || Number.isNaN(inicioConsulta.getTime())) {
@@ -74,7 +75,7 @@ export class ConsultasService {
         throw new BadRequestException('Farmacêutico indisponível.');
       }
 
-      const diaSemana = dataConsulta.getDay();
+      const diaSemana = dataConsulta.getUTCDay();
       const horaInicioMin = toMinutes(dto.hora);
       const horaFimMin = horaInicioMin + DURACAO_SLOT_MIN;
       const [faixas, bloqueios] = await Promise.all([
@@ -108,7 +109,7 @@ export class ConsultasService {
         data: {
           pacienteNome: paciente.nome,
           pacienteEmail: paciente.email,
-          data: new Date(`${dataIso}T00:00:00`),
+          data: dateOnlyToUtc(dataIso),
           hora: dto.hora,
           status: ConsultaStatus.AGENDADA,
           observacoes: dto.observacoes?.trim() ?? '',
@@ -200,7 +201,7 @@ export class ConsultasService {
     const janela = this.getJanelaAtendimento(consulta);
     const agora = new Date();
     if (agora < janela.abreEm) {
-      throw new BadRequestException(`A sala poderá ser aberta a partir de ${janela.abreEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
+      throw new BadRequestException(`A sala poderá ser aberta a partir de ${formatTimeInAppZone(janela.abreEm, APP_TIME_ZONE)}.`);
     }
     if (agora > janela.encerraEm && consulta.status !== ConsultaStatus.EM_ATENDIMENTO) {
       throw new BadRequestException('A janela para iniciar este atendimento terminou.');
@@ -241,11 +242,27 @@ export class ConsultasService {
     const isCliente = user.tipo === 'cliente' && user.email === consulta.pacienteEmail;
     const isFarmaceutico = user.tipo === 'farmaceutico' && consulta.farmaceutico?.id === user.id;
     if (!isCliente && !isFarmaceutico) throw new ForbiddenException('Você não tem acesso a esta consulta.');
-    if (new Set<ConsultaStatus>([ConsultaStatus.CANCELADA, ConsultaStatus.CONCLUIDA, ConsultaStatus.FARMACEUTICO_AUSENTE]).has(consulta.status)) {
+    if (new Set<ConsultaStatus>([ConsultaStatus.CANCELADA, ConsultaStatus.CONCLUIDA]).has(consulta.status)) {
       throw new BadRequestException('Esta consulta não está disponível para entrada.');
     }
 
-    const janela = this.validarJanelaAtendimento(consulta);
+    const janela = this.getJanelaAtendimento(consulta);
+    const agora = new Date();
+    const podeRecuperarAusente = consulta.status === ConsultaStatus.FARMACEUTICO_AUSENTE
+      && Boolean(consulta.farmaceuticoEntrouEm)
+      && agora >= janela.abreEm
+      && agora <= janela.encerraEm;
+    if (consulta.status === ConsultaStatus.FARMACEUTICO_AUSENTE && !podeRecuperarAusente) {
+      throw new BadRequestException('A janela para reabrir este atendimento terminou.');
+    }
+    if (podeRecuperarAusente) {
+      consulta = await this.prisma.consulta.update({
+        where: { id },
+        data: { status: ConsultaStatus.FARMACEUTICO_AGUARDANDO },
+        include: { farmaceutico: { select: { id: true } } },
+      });
+    }
+    this.validarJanelaAtendimento(consulta);
     if (isCliente && !consulta.farmaceuticoEntrouEm) {
       throw new BadRequestException('Aguardando o farmacêutico abrir a sala. Você pode enviar uma mensagem enquanto aguarda.');
     }

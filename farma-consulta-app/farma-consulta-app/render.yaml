@@ -15,6 +15,8 @@ services:
         value: 7d
       - key: FRONTEND_URL
         value: https://farma-consulta-frontend-wxvx.onrender.com
+      - key: APP_TIMEZONE
+        value: America/Sao_Paulo
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -40,6 +42,8 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://farma-consulta-backend-wxvx.onrender.com/api   # <-- corrigido, com /api
+      - key: VITE_APP_TIMEZONE
+        value: America/Sao_Paulo
     routes:
       - type: rewrite
         source: /*

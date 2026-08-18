@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
+import { Link } from 'react-router-dom';
 import { availabilityApi, consultasApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, AvailabilitySlot } from '../../types';
 
@@ -241,6 +242,7 @@ export function AgendaPage() {
               <th>Hora</th>
               <th>Status</th>
               <th>Observações</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -252,6 +254,17 @@ export function AgendaPage() {
                 <td>{c.hora}</td>
                 <td>{CONSULTA_STATUS_LABELS[c.status] ?? c.status}</td>
                 <td>{c.observacoes}</td>
+                <td>
+                  {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
+                    <Link
+                      to="/farmaceutico/consulta-online"
+                      className="fc-button primary"
+                      style={{ display: 'inline-block', width: 'auto', fontSize: 13, padding: '4px 10px' }}
+                    >
+                      {c.status === 'FARMACEUTICO_AUSENTE' ? 'Reabrir atendimento' : 'Abrir atendimento'}
+                    </Link>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

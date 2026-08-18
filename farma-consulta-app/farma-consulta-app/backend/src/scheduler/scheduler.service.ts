@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { EmergencyService } from '../emergency/emergency.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { dateOnlyToUtc, isoDateFromDateOnly, todayIso, zonedDateTimeToUtc } from '../common/timezone';
 
 @Injectable()
 export class SchedulerService {
@@ -48,7 +49,7 @@ export class SchedulerService {
     });
 
     const vencidas = consultas.filter((consulta) => {
-      const inicio = new Date(`${consulta.data.toISOString().slice(0, 10)}T${consulta.hora}:00`);
+      const inicio = zonedDateTimeToUtc(isoDateFromDateOnly(consulta.data), consulta.hora);
       return agora.getTime() > inicio.getTime() + 40 * 60_000;
     });
 
@@ -66,8 +67,8 @@ export class SchedulerService {
    */
   @Cron('0 11 * * *') // 07:00 BRT = 11:00 UTC (Render)
   async enviarAgendaDiaria() {
-    const hoje = new Date();
-    const dataIso = hoje.toISOString().slice(0, 10);
+    const dataIso = todayIso();
+    const dataHoje = dateOnlyToUtc(dataIso);
 
     const farmaceuticos = await this.prisma.user.findMany({
       where: { tipo: 'farmaceutico', ativo: true, email: { not: '' } },
@@ -78,7 +79,7 @@ export class SchedulerService {
       const consultas = await this.prisma.consulta.findMany({
         where: {
           farmaceuticoId: farm.id,
-          data: hoje,
+          data: dataHoje,
           status: { not: 'CANCELADA' },
         },
         orderBy: { hora: 'asc' },
@@ -98,7 +99,7 @@ export class SchedulerService {
           pacienteEmail: c.pacienteEmail,
           observacoes: c.observacoes,
         })),
-        `${hoje.getDate()}/${String(hoje.getMonth() + 1).padStart(2, '0')}`,
+        dataIso.split('-').reverse().join('/'),
       );
     }
   }
