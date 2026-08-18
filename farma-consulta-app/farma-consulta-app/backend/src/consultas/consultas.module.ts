@@ -8,5 +8,6 @@ import { MailModule } from '../mail/mail.module';
   imports: [MailModule],
   providers: [ConsultasService, JaasService],
   controllers: [ConsultasController],
+  exports: [JaasService],
 })
 export class ConsultasModule {}

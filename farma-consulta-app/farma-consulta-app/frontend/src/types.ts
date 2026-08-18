@@ -89,8 +89,11 @@ export interface EmergencyRequest {
   id: string;
   clienteId: string;
   farmaceuticoId?: string | null;
-  status: 'EM_ABERTO' | 'ATENDIDA' | 'EXPIRADA' | 'CANCELADA' | 'ENCERRADA';
+  status: 'EM_ABERTO' | 'ATENDIDA' | 'FARMACEUTICO_AGUARDANDO' | 'EM_ATENDIMENTO' | 'CONCLUIDA' | 'FALHA_ATENDIMENTO' | 'EXPIRADA' | 'CANCELADA' | 'ENCERRADA';
   roomSlug?: string | null;
+  roomToken?: string | null;
+  farmaceuticoEntrouEm?: string | null;
+  clienteEntrouEm?: string | null;
   criadoEm: string;
   aceitoEm?: string | null;
   iniciadoEm?: string | null;
@@ -101,6 +104,7 @@ export interface EmergencyRequest {
   salaAbertaEm?: string | null;
   salaPronta?: boolean;
   notificacaoPaciente?: string;
+  roomSession?: VideoRoomSession;
 }
 
 export const EMERGENCY_STATUS_LABELS: Record<string, string> = {
@@ -109,4 +113,8 @@ export const EMERGENCY_STATUS_LABELS: Record<string, string> = {
   EXPIRADA: 'Expirada',
   CANCELADA: 'Cancelada',
   ENCERRADA: 'Encerrada',
+  FARMACEUTICO_AGUARDANDO: 'Farmacêutico aguardando',
+  EM_ATENDIMENTO: 'Em atendimento',
+  CONCLUIDA: 'Concluída',
+  FALHA_ATENDIMENTO: 'Falha no atendimento',
 };

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { emergencyApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
-import { EMERGENCY_STATUS_LABELS, EmergencyRequest } from '../types';
+import { EMERGENCY_STATUS_LABELS, EmergencyRequest, VideoRoomSession } from '../types';
+import { SalaVideo } from './SalaVideo';
 
-const STATUS_ATIVA = ['EM_ABERTO', 'ATENDIDA'];
+const STATUS_ATIVA = ['EM_ABERTO', 'ATENDIDA', 'FARMACEUTICO_AGUARDANDO', 'EM_ATENDIMENTO'];
+const STATUS_FINAL = ['CONCLUIDA', 'FALHA_ATENDIMENTO', 'EXPIRADA', 'CANCELADA', 'ENCERRADA'];
 
 export function PainelEmergencia() {
   const { user } = useAuth();
@@ -12,6 +14,7 @@ export function PainelEmergencia() {
   const [minhaEmergencia, setMinhaEmergencia] = useState<EmergencyRequest | null>(null);
   const [abertas, setAbertas] = useState<EmergencyRequest[]>([]);
   const [emergenciaAceita, setEmergenciaAceita] = useState<EmergencyRequest | null>(null);
+  const [room, setRoom] = useState<VideoRoomSession | null>(null);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
 
@@ -34,8 +37,8 @@ export function PainelEmergencia() {
 
   useEffect(() => {
     carrega();
-    const interval = setInterval(carrega, 10_000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(carrega, 10_000);
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCliente, isFarmaceutico]);
 
@@ -61,14 +64,50 @@ export function PainelEmergencia() {
     }
   };
 
+  const carregaSala = async (id: string) => {
+    setErro('');
+    try {
+      const { data } = await emergencyApi.room(id);
+      setRoom(data);
+    } catch (err: any) {
+      setRoom(null);
+      setErro(err?.response?.data?.message ?? 'Não foi possível abrir a sala.');
+    }
+  };
+
   const abreSala = async (id: string) => {
     setErro('');
     try {
       const { data } = await emergencyApi.openRoom(id);
       setEmergenciaAceita(data);
+      await carregaSala(id);
       await carrega();
     } catch (err: any) {
       setErro(err?.response?.data?.message ?? 'Não foi possível abrir a sala.');
+    }
+  };
+
+  const marcaEntrada = async (id: string) => {
+    try {
+      await emergencyApi.enterRoom(id);
+      await carrega();
+    } catch {
+      // O polling continuará refletindo o estado persistido.
+    }
+  };
+
+  const fechaModal = () => setRoom(null);
+  const requestForRoom = isFarmaceutico ? emergenciaAceita : minhaEmergencia;
+
+  const encerraSalaFarmaceutico = async (id: string) => {
+    try {
+      await emergencyApi.close(id, { status: 'ENCERRADA', motivoEncerramento: 'Sala encerrada pelo farmacêutico.' });
+    } catch (err: any) {
+      setErro(err?.response?.data?.message ?? 'Não foi possível encerrar a emergência.');
+    } finally {
+      setRoom(null);
+      setEmergenciaAceita(null);
+      await carrega();
     }
   };
 
@@ -92,16 +131,19 @@ export function PainelEmergencia() {
               <div className="fc-alert info">
                 Status: <strong>{EMERGENCY_STATUS_LABELS[minhaEmergencia.status] ?? minhaEmergencia.status}</strong>
               </div>
-              {minhaEmergencia.status === 'ATENDIDA' && minhaEmergencia.roomUrl && (
+              {minhaEmergencia.status === 'ATENDIDA' && (
+                <div className="fc-alert info">O farmacêutico aceitou a emergência e abrirá a sala em seguida.</div>
+              )}
+              {minhaEmergencia.status === 'FARMACEUTICO_AGUARDANDO' && (
                 <>
-                  <div className="fc-alert success">O farmacêutico abriu a sala. Você já pode entrar na chamada.</div>
-                  <button className="fc-button danger" onClick={() => window.open(minhaEmergencia.roomUrl, '_blank', 'noopener,noreferrer')}>
+                  <div className="fc-alert success">O farmacêutico abriu a sala. Você pode entrar na mesma chamada.</div>
+                  <button className="fc-button danger" onClick={() => carregaSala(minhaEmergencia.id)}>
                     Entrar na sala de emergência
                   </button>
                 </>
               )}
-              {minhaEmergencia.status === 'ATENDIDA' && !minhaEmergencia.roomUrl && (
-                <div className="fc-alert info">O farmacêutico aceitou a emergência. A entrada será liberada assim que ele abrir a sala.</div>
+              {minhaEmergencia.status === 'EM_ATENDIMENTO' && (
+                <div className="fc-alert success">Atendimento em andamento.</div>
               )}
               {minhaEmergencia.status === 'EM_ABERTO' && (
                 <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
@@ -111,10 +153,16 @@ export function PainelEmergencia() {
             </div>
           ) : (
             <>
+              {minhaEmergencia?.status === 'FALHA_ATENDIMENTO' && (
+                <div className="fc-alert error">A sala foi encerrada sem a entrada do paciente. Você pode notificar novamente os farmacêuticos.</div>
+              )}
               {minhaEmergencia?.status === 'EXPIRADA' && <div className="fc-alert error">Nenhum farmacêutico conseguiu atender sua solicitação dentro do prazo.</div>}
+              {minhaEmergencia?.status === 'CONCLUIDA' && <div className="fc-alert success">A emergência foi concluída.</div>}
               {minhaEmergencia?.status === 'ENCERRADA' && <div className="fc-alert info">A emergência foi encerrada. Você pode solicitar um novo atendimento.</div>}
               {minhaEmergencia?.status === 'CANCELADA' && <div className="fc-alert info">A emergência anterior foi cancelada. Você pode solicitar um novo atendimento.</div>}
-              <button className="fc-button danger" onClick={solicita} disabled={carregando}>Solicitar emergência agora</button>
+              <button className="fc-button danger" onClick={solicita} disabled={carregando}>
+                {minhaEmergencia && STATUS_FINAL.includes(minhaEmergencia.status) ? 'Notificar novamente' : 'Solicitar emergência agora'}
+              </button>
             </>
           )}
         </>
@@ -129,7 +177,6 @@ export function PainelEmergencia() {
                 <button className="fc-button danger" style={{ width: 'auto' }} onClick={() => abreSala(emergenciaAceita.id)}>
                   Abrir sala e avisar paciente
                 </button>
-                {emergenciaAceita.roomUrl && <button className="fc-button primary" style={{ width: 'auto' }} onClick={() => window.open(emergenciaAceita.roomUrl, '_blank', 'noopener,noreferrer')}>Entrar na sala</button>}
               </div>
             </div>
           )}
@@ -147,6 +194,29 @@ export function PainelEmergencia() {
             </div>
           )}
         </>
+      )}
+
+      {room && requestForRoom && (
+        <div className="fc-modal" style={{ display: 'block' }}>
+          <div className="fc-modal-content">
+            <h2>Sala de emergência</h2>
+            <SalaVideo
+              session={room}
+              onJoined={() => { void marcaEntrada(requestForRoom.id); }}
+              onClosed={() => {
+                if (isFarmaceutico) void encerraSalaFarmaceutico(requestForRoom.id);
+                else fechaModal();
+              }}
+            />
+            <button
+              className="fc-button"
+              style={{ marginTop: 12 }}
+              onClick={() => (isFarmaceutico ? encerraSalaFarmaceutico(requestForRoom.id) : fechaModal())}
+            >
+              {isFarmaceutico ? 'Fechar sala e atualizar status' : 'Fechar'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

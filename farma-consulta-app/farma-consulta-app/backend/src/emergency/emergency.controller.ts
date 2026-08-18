@@ -46,6 +46,20 @@ export class EmergencyController {
     return this.emergencyService.abrirSala(id, user.id);
   }
 
+  /** Participantes: obtêm a sessão da mesma sala de emergência. */
+  @Get(':id/room')
+  @Roles('cliente', 'farmaceutico')
+  sala(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.emergencyService.sala(id, user);
+  }
+
+  /** Participantes: registram entrada efetiva no vídeo. */
+  @Post(':id/enter-room')
+  @Roles('cliente', 'farmaceutico')
+  entrarSala(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.emergencyService.entrarSala(id, user);
+  }
+
   /** Farmacêutico: inicia o atendimento. */
   @Post(':id/start')
   @Roles('farmaceutico')
