@@ -68,6 +68,11 @@ export function PainelEmergencia() {
     setErro('');
     try {
       const { data } = await emergencyApi.room(id);
+      // O evento videoConferenceJoined pode não chegar de forma consistente em
+      // navegadores móveis. A abertura da sessão autenticada já confirma que o
+      // participante acionou a entrada; o evento nativo continua reforçando a
+      // mesma operação de forma idempotente.
+      await emergencyApi.enterRoom(id);
       setRoom(data);
     } catch (err: any) {
       setRoom(null);

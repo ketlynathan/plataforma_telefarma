@@ -151,7 +151,13 @@ export class EmergencyService {
       data.status = EM_ATENDIMENTO;
     }
     if (Object.keys(data).length === 0) return request;
-    return this.prisma.emergencyRequest.update({ where: { id: requestId }, data });
+    const atualizado = await this.prisma.emergencyRequest.update({ where: { id: requestId }, data });
+    this.logger.log(
+      `Participante entrou na emergência ${requestId}: ${farmaceutico ? 'farmacêutico' : 'paciente'}; ` +
+      `farmaceuticoEntrouEm=${Boolean(atualizado.farmaceuticoEntrouEm)}; ` +
+      `clienteEntrouEm=${Boolean(atualizado.clienteEntrouEm)}; status=${atualizado.status}`,
+    );
+    return atualizado;
   }
 
   async abrirSala(requestId: string, farmaceuticoId: string) {
@@ -171,6 +177,7 @@ export class EmergencyService {
         roomSlug,
         roomToken,
         salaAbertaEm: new Date(),
+        farmaceuticoEntrouEm: request.farmaceuticoEntrouEm ?? new Date(),
         status: FARMACEUTICO_AGUARDANDO,
       },
       include: { cliente: { select: { nome: true } } },
