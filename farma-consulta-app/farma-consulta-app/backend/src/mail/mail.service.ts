@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-type SendOptions = { to: string; subject: string; html: string };
+type MailAttachment = { name: string; content: string };
+type SendOptions = { to: string; subject: string; html: string; attachments?: MailAttachment[] };
 
 const BRAND = '#166534';
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
@@ -114,18 +115,58 @@ export class MailService {
   async sendConsultationBooked(
     to: string,
     farmaceuticoNome: string,
-    consulta: { pacienteNome: string; data: string; hora: string; timezone?: string; observacoes?: string | null },
+    consulta: {
+      pacienteNome: string;
+      data: string;
+      hora: string;
+      timezone?: string;
+      observacoes?: string | null;
+      consultationLink?: string;
+      calendarLink?: string | null;
+      attachments?: MailAttachment[];
+    },
   ) {
+    const link = consulta.consultationLink;
     return this.dispatch({
       to,
       subject: `Nova consulta agendada para ${consulta.data} às ${consulta.hora} — FarmaAtende`,
+      attachments: consulta.attachments,
       html: baseHtml(
         'Nova consulta agendada',
         `<p>Olá, <strong>${farmaceuticoNome}</strong>.</p>
          <p>Uma nova consulta foi agendada para <strong>${consulta.data}</strong>, às <strong>${consulta.hora}</strong>${consulta.timezone ? ` (${consulta.timezone})` : ''}.</p>
          <p><strong>Paciente:</strong> ${consulta.pacienteNome}</p>
          <p><strong>Observações:</strong> ${consulta.observacoes || '—'}</p>
-         <p>Acesse a plataforma para consultar os detalhes e entrar na sala de atendimento.</p>`,
+         ${link ? `<p style="text-align:center;margin:24px 0"><a href="${link}" style="background:${BRAND};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold">Abrir atendimento</a></p>` : '<p>Acesse a plataforma para consultar os detalhes e entrar na sala de atendimento.</p>'}
+         ${consulta.calendarLink ? `<p><a href="${consulta.calendarLink}">Ver evento no Google Calendar</a></p>` : '<p>O arquivo de calendário desta consulta está anexado a este e-mail.</p>'}`,
+      ),
+    });
+  }
+
+  async sendPatientConsultationBooked(
+    to: string,
+    pacienteNome: string,
+    consulta: {
+      farmaceuticoNome: string;
+      data: string;
+      hora: string;
+      timezone?: string;
+      consultationLink?: string;
+      calendarLink?: string | null;
+      attachments?: MailAttachment[];
+    },
+  ) {
+    return this.dispatch({
+      to,
+      subject: `Sua consulta foi confirmada para ${consulta.data} às ${consulta.hora} — FarmaAtende`,
+      attachments: consulta.attachments,
+      html: baseHtml(
+        'Consulta confirmada',
+        `<p>Olá, <strong>${pacienteNome}</strong>.</p>
+         <p>Sua consulta com <strong>${consulta.farmaceuticoNome}</strong> está agendada para <strong>${consulta.data}</strong>, às <strong>${consulta.hora}</strong>${consulta.timezone ? ` (${consulta.timezone})` : ''}.</p>
+         <p>O convite do Google Calendar e um arquivo compatível com outros calendários estão anexados. Os lembretes dependem das notificações ativadas no aplicativo de calendário.</p>
+         ${consulta.consultationLink ? `<p style="text-align:center;margin:24px 0"><a href="${consulta.consultationLink}" style="background:${BRAND};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold">Ir para minha consulta</a></p>` : ''}
+         ${consulta.calendarLink ? `<p><a href="${consulta.calendarLink}">Abrir evento no Google Calendar</a></p>` : ''}`,
       ),
     });
   }
@@ -190,6 +231,7 @@ export class MailService {
           to: [{ email: options.to }],
           subject: options.subject,
           htmlContent: options.html,
+          ...(options.attachments?.length ? { attachment: options.attachments } : {}),
         }),
       });
 

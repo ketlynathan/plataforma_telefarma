@@ -42,14 +42,15 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relações novas
-  consultas               Consulta[]
-  mensagensEnviadas       Message[]              @relation("Remetente")
-  mensagensRecebidas      Message[]              @relation("Destinatario")
-  emergenciasCliente      EmergencyRequest[]     @relation("ClienteEmergencia")
-  emergenciasFarmaceutico EmergencyRequest[]     @relation("FarmaceuticoEmergencia")
-  disponibilidade         Availability[]
-  blockouts               AvailabilityBlockout[]
-  invitesCriados          Invite[]               @relation("CriadoPor")
+  consultas                Consulta[]
+  mensagensEnviadas        Message[]                 @relation("Remetente")
+  mensagensRecebidas       Message[]                 @relation("Destinatario")
+  emergenciasCliente       EmergencyRequest[]        @relation("ClienteEmergencia")
+  emergenciasFarmaceutico  EmergencyRequest[]        @relation("FarmaceuticoEmergencia")
+  disponibilidade          Availability[]
+  blockouts                AvailabilityBlockout[]
+  invitesCriados           Invite[]                  @relation("CriadoPor")
+  googleCalendarConnection GoogleCalendarConnection?
 
   @@map("usuarios")
 }
@@ -89,6 +90,8 @@ model Consulta {
   farmaceuticoEntrouEm DateTime? @map("farmaceutico_entrou_em")
   clienteEntrouEm      DateTime? @map("cliente_entrou_em")
   toleranciaMin        Int       @default(15) @map("tolerancia_min")
+  googleCalendarId     String?   @map("google_calendar_id")
+  googleEventId        String?   @map("google_event_id")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -97,10 +100,24 @@ model Consulta {
 
   @@index([pacienteEmail])
   @@index([farmaceuticoId])
+  @@index([googleEventId])
   @@map("consultas")
 }
 
 // Disponibilidade semanal do farmacêutico (itens 5-8)
+model GoogleCalendarConnection {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  refreshToken String   @map("refresh_token")
+  scope        String?
+  connectedAt  DateTime @default(now()) @map("connected_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_connections")
+}
+
 model Availability {
   id             String   @id @default(uuid())
   farmaceuticoId String   @map("farmaceutico_id")

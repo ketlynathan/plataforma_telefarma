@@ -1,13 +1,20 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../../api/client';
+import { calendarApi } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import { TIMEZONE_OPTIONS } from '../../utils/timezone';
 
+type CalendarState = { configured: boolean; connected: boolean; connectedAt: string | null };
+
 export function PerfilPage() {
   const { user, refreshUser } = useAuth();
+  const location = useLocation();
   const [form, setForm] = useState({ tratamento: 'Dr.', nome: '', telefone: '', crf: '', banco: '', agencia: '', contaBancaria: '', chavePix: '', timezone: 'America/Sao_Paulo' });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [calendar, setCalendar] = useState<CalendarState | null>(null);
+  const [calendarBusy, setCalendarBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -18,6 +25,23 @@ export function PerfilPage() {
     });
   }, [user]);
 
+  useEffect(() => {
+    let ativo = true;
+    calendarApi.status()
+      .then(({ data }) => { if (ativo) setCalendar(data); })
+      .catch(() => { if (ativo) setCalendar(null); });
+    const query = new URLSearchParams(location.search);
+    if (query.get('calendar') === 'connected') {
+      setMessage({ type: 'success', text: 'Google Calendar conectado. Os próximos agendamentos criarão eventos automaticamente.' });
+      window.history.replaceState({}, '', location.pathname);
+    }
+    if (query.get('calendar') === 'error') {
+      setMessage({ type: 'error', text: 'Não foi possível concluir a conexão com o Google Calendar. Tente novamente.' });
+      window.history.replaceState({}, '', location.pathname);
+    }
+    return () => { ativo = false; };
+  }, [location.pathname, location.search]);
+
   const update = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((current) => ({ ...current, [key]: e.target.value }));
 
@@ -26,6 +50,29 @@ export function PerfilPage() {
     try { await api.patch('/users/me', form); await refreshUser(); setMessage({ type: 'success', text: 'Perfil atualizado com sucesso.' }); }
     catch (err: any) { setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Não foi possível atualizar o perfil.' }); }
     finally { setSubmitting(false); }
+  };
+
+  const connectCalendar = async () => {
+    setCalendarBusy(true); setMessage(null);
+    try {
+      const { data } = await calendarApi.connect();
+      window.location.assign(data.url);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Não foi possível iniciar a conexão com o Google Calendar.' });
+      setCalendarBusy(false);
+    }
+  };
+
+  const disconnectCalendar = async () => {
+    if (!window.confirm('Desconectar o Google Calendar? Os eventos já criados continuarão no calendário, mas novos agendamentos não serão adicionados.')) return;
+    setCalendarBusy(true); setMessage(null);
+    try {
+      await calendarApi.disconnect();
+      setCalendar((current) => current ? { ...current, connected: false, connectedAt: null } : current);
+      setMessage({ type: 'success', text: 'Google Calendar desconectado.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Não foi possível desconectar o Google Calendar.' });
+    } finally { setCalendarBusy(false); }
   };
 
   return <div>
@@ -49,6 +96,26 @@ export function PerfilPage() {
           {TIMEZONE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
+
+      <section className="fc-card" style={{ margin: '24px 0', maxWidth: 720 }}>
+        <h3 style={{ marginTop: 0 }}>Google Calendar</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Conecte o seu calendário para que cada nova consulta seja criada automaticamente com o paciente como convidado e lembretes de 30, 15 e 0 minutos. O paciente também recebe o convite e um arquivo de calendário no e-mail de confirmação.
+        </p>
+        {!calendar?.configured && <div className="fc-alert info">A integração ainda não foi configurada pela plataforma.</div>}
+        {calendar?.configured && calendar.connected && <div className="fc-alert success">Calendário conectado. Os próximos agendamentos serão adicionados ao calendário principal.</div>}
+        {calendar?.configured && !calendar.connected && <div className="fc-alert info">Nenhum calendário conectado a este perfil.</div>}
+        {calendar?.configured && (calendar.connected ? (
+          <button type="button" className="fc-button" onClick={disconnectCalendar} disabled={calendarBusy}>
+            {calendarBusy ? 'Desconectando...' : 'Desconectar Google Calendar'}
+          </button>
+        ) : (
+          <button type="button" className="fc-button primary" onClick={connectCalendar} disabled={calendarBusy}>
+            {calendarBusy ? 'Abrindo Google...' : 'Conectar Google Calendar'}
+          </button>
+        ))}
+      </section>
+
       <h3>Dados bancários</h3>
       <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Campos opcionais, preparados para futuros repasses.</p>
       <div className="fc-grid-2">

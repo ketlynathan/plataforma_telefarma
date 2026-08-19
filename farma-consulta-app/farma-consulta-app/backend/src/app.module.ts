@@ -11,6 +11,7 @@ import { AvailabilityModule } from './availability/availability.module';
 import { MessagesModule } from './messages/messages.module';
 import { EmergencyModule } from './emergency/emergency.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -26,6 +27,7 @@ import { HealthController } from './health.controller';
     MessagesModule,
     EmergencyModule,
     SchedulerModule,
+    CalendarModule,
   ],
   controllers: [HealthController],
 })

@@ -37,6 +37,12 @@ export const availabilityApi = {
 
 // ---------- Consultas ----------
 
+export const calendarApi = {
+  status: () => api.get<{ configured: boolean; connected: boolean; connectedAt: string | null }>('/calendar/status'),
+  connect: () => api.get<{ url: string }>('/calendar/connect'),
+  disconnect: () => api.post<{ connected: false }>('/calendar/disconnect'),
+};
+
 export const consultasApi = {
   create: (payload: { farmaceuticoId: string; data: string; hora: string; observacoes?: string }) =>
     api.post<Consulta>('/consultas', payload),

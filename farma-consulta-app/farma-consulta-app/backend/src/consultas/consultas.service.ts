@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { MailService } from '../mail/mail.service';
 import { JaasService, VideoRoomSession } from './jaas.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { APP_TIME_ZONE, DEFAULT_TIME_ZONE, dateOnlyToUtc, formatDateInZone, formatTimeInZone, isoDateFromDateOnly, isValidTimeZone, zonedDateTimeToUtc } from '../common/timezone';
 
 const DURACAO_SLOT_MIN = 60;
@@ -33,6 +34,7 @@ export class ConsultasService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly jaas: JaasService,
+    private readonly calendar: CalendarService,
   ) {}
 
   // ---------- Criação com validação de disponibilidade (transação) ----------
@@ -136,6 +138,22 @@ export class ConsultasService {
       where: { id: dto.farmaceuticoId },
       select: { nome: true, email: true },
     });
+
+    let bookingAssets: Awaited<ReturnType<CalendarService['prepareBookingAssets']>> | null = null;
+    try {
+      bookingAssets = await this.calendar.prepareBookingAssets(resultado.id);
+    } catch (error) {
+      this.logger.warn(`Integração opcional do calendário não concluída para ${resultado.id}: ${String(error)}`);
+    }
+
+    const attachments = bookingAssets
+      ? [{ name: bookingAssets.icsFilename, content: bookingAssets.icsContentBase64 }]
+      : undefined;
+    const pharmacistLink = bookingAssets?.pharmacistLink
+      ?? `${this.configuredFrontendUrl()}/farmaceutico/consulta-online?consulta=${encodeURIComponent(resultado.id)}`;
+    const patientLink = bookingAssets?.patientLink
+      ?? `${this.configuredFrontendUrl()}/cliente/consultas?consulta=${encodeURIComponent(resultado.id)}`;
+
     if (farmaceutico?.email) {
       await this.mail.sendConsultationBooked(farmaceutico.email, farmaceutico.nome, {
         pacienteNome: paciente.nome,
@@ -143,11 +161,29 @@ export class ConsultasService {
         hora: dto.hora,
         timezone: agendaTimezone,
         observacoes: dto.observacoes,
+        consultationLink: pharmacistLink,
+        calendarLink: bookingAssets?.calendarLink,
+        attachments,
+      });
+    }
+    if (paciente.email) {
+      await this.mail.sendPatientConsultationBooked(paciente.email, paciente.nome, {
+        farmaceuticoNome: farmaceutico?.nome ?? 'farmacêutico(a)',
+        data: dataIso,
+        hora: dto.hora,
+        timezone: agendaTimezone,
+        consultationLink: patientLink,
+        calendarLink: bookingAssets?.calendarLink,
+        attachments,
       });
     }
 
     this.logger.log(`Consulta criada para ${dataIso} ${dto.hora} com ${dto.farmaceuticoId}`);
     return resultado;
+  }
+
+  private configuredFrontendUrl(): string {
+    return (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, '');
   }
 
   // ---------- Consultas do cliente ----------
@@ -409,6 +445,10 @@ export class ConsultasService {
       data: { status },
       include: { farmaceutico: { select: { id: true, nome: true, tratamento: true, crf: true } } },
     });
+
+    if (status === ConsultaStatus.CANCELADA) {
+      await this.calendar.cancelEventForConsulta(id);
+    }
 
     this.logger.log(`Status da consulta ${id} → ${status}`);
     return atualizado;

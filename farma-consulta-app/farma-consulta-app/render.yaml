@@ -15,6 +15,14 @@ services:
         value: 7d
       - key: FRONTEND_URL
         value: https://farma-consulta-frontend-wxvx.onrender.com
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
       - key: APP_TIMEZONE
         value: America/Sao_Paulo
       - key: SMTP_HOST

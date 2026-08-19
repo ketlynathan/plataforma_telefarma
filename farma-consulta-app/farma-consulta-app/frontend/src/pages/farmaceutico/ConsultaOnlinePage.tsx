@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { consultasApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, VideoRoomSession } from '../../types';
 import { Mensagens } from '../../components/Mensagens';
@@ -18,6 +19,8 @@ export function ConsultaOnlinePage() {
   const [mensagemAberta, setMensagemAberta] = useState<string | null>(null);
   const [room, setRoom] = useState<VideoRoomSession | null>(null);
   const [roomError, setRoomError] = useState('');
+  const [consultaDoLinkAberta, setConsultaDoLinkAberta] = useState(false);
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
   const carrega = async () => {
@@ -81,6 +84,13 @@ export function ConsultaOnlinePage() {
     setRoomError('');
     await carrega();
   };
+
+  useEffect(() => {
+    const id = searchParams.get('consulta');
+    if (!id || consultaDoLinkAberta || !consultas.some((consulta) => consulta.id === id)) return;
+    setConsultaDoLinkAberta(true);
+    void entraSalaAtual(id);
+  }, [consultas, consultaDoLinkAberta, searchParams]);
 
   return (
     <div>
