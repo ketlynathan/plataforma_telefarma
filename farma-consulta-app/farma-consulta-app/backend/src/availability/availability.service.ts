@@ -123,7 +123,7 @@ export class AvailabilityService {
       }),
     ]);
 
-    // Permite agendamento no mesmo dia, mas preserva uma antecedência mínima operacional.
+    // Permite agendamento no mesmo dia, preservando 50 minutos de antecedência mínima.
     const agora = Date.now();
     const resultado = farmaceuticos.map((farm) => {
       const agendaTimezone = isValidTimeZone(farm.timezone) ? farm.timezone : DEFAULT_TIME_ZONE;
@@ -152,8 +152,8 @@ export class AvailabilityService {
           const slotInicioDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotInicio), agendaTimezone);
           const slotFimDate = zonedDateTimeToUtc(dataIso, fromMinutes(slotFim), agendaTimezone);
 
-          // O mesmo dia é permitido; slots que já começaram ou estão a menos de 60 min não são ofertados.
-          if (dataAnterior || slotInicioDate.getTime() < agora + 60 * 60_000) continue;
+          // O mesmo dia é permitido; slots que já começaram ou estão a menos de 50 min não são ofertados.
+          if (dataAnterior || slotInicioDate.getTime() < agora + 50 * 60_000) continue;
 
           const bloqueado = meusBloqueios.some(
             (b) => b.inicio < slotFimDate && b.fim > slotInicioDate,

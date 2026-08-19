@@ -10,7 +10,7 @@ import { APP_TIME_ZONE, DEFAULT_TIME_ZONE, dateOnlyToUtc, formatDateInZone, form
 const DURACAO_SLOT_MIN = 60;
 const JANELA_ABERTURA_ANTES_MIN = 30;
 const JANELA_ABERTURA_DEPOIS_MIN = 40;
-const ANTECEDENCIA_AGENDAMENTO_MIN = 60;
+const ANTECEDENCIA_AGENDAMENTO_MIN = 50;
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
