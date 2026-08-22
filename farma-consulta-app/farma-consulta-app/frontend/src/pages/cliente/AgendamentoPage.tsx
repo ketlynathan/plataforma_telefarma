@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { availabilityApi, consultasApi } from '../../api/endpoints';
+import { availabilityApi, paymentsApi, PaymentPrice } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import { SlotFarmaceutico, formatFarmaceutico } from '../../types';
 import { appTodayIso, formatConsultationTimes } from '../../utils/timezone';
@@ -24,6 +24,8 @@ export function AgendamentoPage() {
   const [farmaceuticoId, setFarmaceuticoId] = useState('');
   const [hora, setHora] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [prices, setPrices] = useState<PaymentPrice[]>([]);
+  const [productPriceId, setProductPriceId] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +49,15 @@ export function AgendamentoPage() {
 };
 
   useEffect(() => {
+    paymentsApi.prices().then(({ data: lista }) => {
+      setPrices(lista);
+      if (lista.length > 0) setProductPriceId(lista[0].id);
+    }).catch((err: any) => {
+      setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Não foi possível carregar os serviços disponíveis.' });
+    });
+  }, []);
+
+  useEffect(() => {
   if (!data && user) {
     setData(addDays(0, user.timezone));
     return;
@@ -65,11 +76,13 @@ const handleSubmit = async (e: FormEvent) => {
   }
   setSubmitting(true);
   try {
-    await consultasApi.create({ farmaceuticoId, data, hora, observacoes });
-    setMessage({ type: 'success', text: 'Consulta agendada com sucesso.' });
-    setHora('');
-    setObservacoes('');
-    await carregaSlots(data);
+    if (!productPriceId) {
+      setMessage({ type: 'error', text: 'Escolha o tipo de consulta.' });
+      return;
+    }
+    const { data: checkout } = await paymentsApi.checkout({ productPriceId, farmaceuticoId, data, hora, observacoes });
+    setMessage({ type: 'success', text: 'Reserva criada. Redirecionando para o pagamento seguro...' });
+    window.location.assign(checkout.checkoutUrl);
   } catch (err: any) {
     console.error('Falha ao agendar consulta', err);
     setMessage({ type: 'error', text: err?.response?.data?.message ?? 'Erro ao agendar consulta.' });
@@ -84,11 +97,27 @@ const handleSubmit = async (e: FormEvent) => {
   return (
     <div>
       <h1>Agendar consulta</h1>
-      <p>Escolha a data, o farmacêutico e o horário disponível para o seu atendimento.</p>
+      <p>Escolha o serviço, a data, o farmacêutico e o horário disponível. A consulta será confirmada após o pagamento aprovado.</p>
 
       {message && <div className={`fc-alert ${message.type}`}>{message.text}</div>}
 
       <form onSubmit={handleSubmit} style={{ maxWidth: 640 }}>
+        <div className="fc-field">
+          <label>Tipo de consulta</label>
+          {prices.length === 0 ? (
+            <div className="fc-alert info">Carregando serviços...</div>
+          ) : (
+            <select className="fc-select" value={productPriceId} onChange={(e) => setProductPriceId(e.target.value)} required>
+              <option value="">Selecione o serviço</option>
+              {prices.map((price) => (
+                <option key={price.id} value={price.id}>
+                  {price.nome} — {(price.valorCentavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         <div className="fc-field">
           <label>Data</label>
           <input
@@ -164,8 +193,8 @@ const handleSubmit = async (e: FormEvent) => {
           />
         </div>
         <p>Paciente: {user?.nome}</p>
-        <button className="fc-button primary" type="submit" disabled={submitting || !hora}>
-          Confirmar agendamento
+        <button className="fc-button primary" type="submit" disabled={submitting || !hora || !productPriceId || prices.length === 0}>
+          {submitting ? 'Abrindo pagamento...' : 'Continuar para pagamento'}
         </button>
       </form>
     </div>

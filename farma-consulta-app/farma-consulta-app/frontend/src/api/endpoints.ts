@@ -58,6 +58,107 @@ export const consultasApi = {
     api.patch(`/consultas/${id}/status`, { status }),
 };
 
+// ---------- Pagamentos ----------
+
+export interface PaymentPrice {
+  id: string;
+  slug: string;
+  nome: string;
+  descricao?: string | null;
+  tipoAtendimento: string;
+  valorCentavos: number;
+  versao: number;
+}
+
+export const paymentsApi = {
+  prices: () => api.get<PaymentPrice[]>('/payments/prices'),
+  checkout: (payload: { productPriceId: string; farmaceuticoId: string; data: string; hora: string; observacoes?: string }) =>
+    api.post<{ paymentId: string; checkoutUrl: string; expiresAt: string; amountCentavos: number; product: PaymentPrice }>('/payments/checkout', payload),
+  get: (id: string) => api.get(`/payments/${id}`),
+  adminPrices: () => api.get('/payments/admin/prices'),
+  createAdminPrice: (payload: { slug: string; nome: string; descricao?: string; tipoAtendimento: string; valorCentavos: number }) =>
+    api.post('/payments/admin/prices', payload),
+  updateAdminPrice: (id: string, payload: { nome?: string; descricao?: string; valorCentavos?: number; ativo?: boolean }) =>
+    api.patch(`/payments/admin/prices/${id}`, payload),
+  adminPayments: () => api.get('/payments/admin/payments'),
+};
+
+// ---------- Prontuário clínico ----------
+
+export interface ProntuarioEntrada {
+  id: string;
+  prontuarioId: string;
+  consultaId?: string | null;
+  farmaceuticoId: string;
+  assunto: string;
+  tipo: string;
+  conteudo: string;
+  conduta?: string | null;
+  orientacoes?: string | null;
+  encaminhamento?: string | null;
+  status: string;
+  versao: number;
+  criadoEm: string;
+  atualizadoEm: string;
+  finalizadoEm?: string | null;
+  farmaceutico?: { id: string; nome: string; tratamento?: string | null; crf?: string | null };
+  consulta?: { id: string; data: string; hora: string; status: string } | null;
+}
+
+export interface ProntuarioResumo {
+  id: string;
+  pacienteId: string;
+  status: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  ultimoAtendimentoEm?: string | null;
+  paciente: { id: string; nome: string; email: string };
+  entradas: ProntuarioEntrada[];
+}
+
+export const prontuarioApi = {
+  meu: () => api.get<ProntuarioResumo>('/prontuario/me'),
+  porId: (id: string) => api.get<ProntuarioResumo>(`/prontuario/${id}`),
+  pacientes: () => api.get<Array<{ pacienteId: string; prontuarioId: string; pacienteNome: string; pacienteEmail: string; status: string; atualizadoEm: string; ultimoAtendimentoEm?: string | null }>>('/prontuario/pacientes'),
+  criarEntrada: (payload: {
+    prontuarioId: string;
+    consultaId?: string;
+    assunto: string;
+    tipo?: string;
+    conteudo: string;
+    conduta?: string;
+    orientacoes?: string;
+    encaminhamento?: string;
+  }) => api.post<ProntuarioEntrada>('/prontuario/entradas', payload),
+  atualizarEntrada: (id: string, payload: Partial<Pick<ProntuarioEntrada, 'assunto' | 'tipo' | 'conteudo' | 'conduta' | 'orientacoes' | 'encaminhamento'>>) =>
+    api.patch<ProntuarioEntrada>(`/prontuario/entradas/${id}`, payload),
+  finalizarEntrada: (id: string) => api.post<ProntuarioEntrada>(`/prontuario/entradas/${id}/finalizar`),
+  consentimentos: () => api.get('/prontuario/consentimentos'),
+  criarConsentimento: (payload: { tipo: string; versaoDocumento: string; finalidade: string; aceito: boolean }) =>
+    api.post('/prontuario/consentimentos', payload),
+  revogarConsentimento: (id: string) => api.post(`/prontuario/consentimentos/${id}/revogar`),
+  concederAcesso: (payload: { farmaceuticoId: string; consultaId?: string; expiraEm?: string }) =>
+    api.post('/prontuario/acessos', payload),
+  protocolos: () => api.get('/prontuario/protocolos'),
+  criarProtocolo: (payload: { nome: string; descricao?: string; camposJson: Record<string, unknown> }) =>
+    api.post('/prontuario/protocolos', payload),
+  atualizarProtocolo: (id: string, payload: { nome?: string; descricao?: string; ativo?: boolean; camposJson?: Record<string, unknown> }) =>
+    api.patch(`/prontuario/protocolos/${id}`, payload),
+  listarAnexos: (consultaId?: string) => api.get('/prontuario/anexos', { params: consultaId ? { consultaId } : undefined }),
+  uploadAnexo: (file: File, options?: { consultaId?: string; entradaId?: string }) => {
+    const data = new FormData();
+    data.append('file', file);
+    return api.post('/prontuario/anexos', data, { params: options });
+  },
+  downloadAnexo: (id: string) => api.get<{ url: string }>(`/prontuario/anexos/${id}/download`),
+  baixarAnexoUrl: (id: string) => `${api.defaults.baseURL}/prontuario/anexos/${id}/download`,
+  listarPrescricoes: (consultaId: string) => api.get(`/prontuario/prescricoes`, { params: { consultaId } }),
+  criarPrescricao: (payload: { consultaId: string; conteudo: string }) => api.post('/prontuario/prescricoes', payload),
+  atualizarPrescricao: (id: string, payload: { conteudo: string }) => api.patch(`/prontuario/prescricoes/${id}`, payload),
+  finalizarPrescricao: (id: string) => api.post(`/prontuario/prescricoes/${id}/finalizar`),
+  baixarPrescricaoUrl: (id: string) => `${api.defaults.baseURL}/prontuario/prescricoes/${id}/download`,
+};
+
 // ---------- Mensagens ----------
 
 export const messagesApi = {

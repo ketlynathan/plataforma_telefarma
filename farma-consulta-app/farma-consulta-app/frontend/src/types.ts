@@ -31,6 +31,7 @@ export interface Consulta {
   toleranciaMin?: number;
   agendaTimezone?: string;
   agendadoEmUtc?: string | null;
+  tipoAtendimento?: string | null;
 }
 
 export function formatFarmaceutico(nome: string, tratamento?: string | null, crf?: string | null): string {

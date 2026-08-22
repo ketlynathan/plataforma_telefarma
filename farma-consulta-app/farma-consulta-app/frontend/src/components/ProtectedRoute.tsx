@@ -8,7 +8,8 @@ export function ProtectedRoute({ tipo, children }: { tipo?: UserTipo; children: 
   if (loading) return <div className="fc-shell">Carregando...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (tipo && user.tipo !== tipo) {
-    return <Navigate to={user.tipo === 'cliente' ? '/cliente' : '/farmaceutico'} replace />;
+    const fallback = user.tipo === 'cliente' ? '/cliente' : user.tipo === 'admin' ? '/admin' : '/farmaceutico';
+    return <Navigate to={fallback} replace />;
   }
   return <>{children}</>;
 }

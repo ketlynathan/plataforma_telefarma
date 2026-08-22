@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { consultasApi, messagesApi } from '../../api/endpoints';
+import { consultasApi, messagesApi, prontuarioApi } from '../../api/endpoints';
 import { Consulta, CONSULTA_STATUS_LABELS, formatFarmaceutico } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { Mensagens } from '../../components/Mensagens';
@@ -37,8 +37,11 @@ export function ConsultasPage() {
   const [room, setRoom] = useState<VideoRoomSession | null>(null);
   const [roomError, setRoomError] = useState('');
   const [naoLidas, setNaoLidas] = useState(0);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [consultaDoLinkAberta, setConsultaDoLinkAberta] = useState(false);
   const [searchParams] = useSearchParams();
+  const pagamento = searchParams.get('pagamento');
   const { user } = useAuth();
 
   const carrega = async () => {
@@ -91,6 +94,19 @@ export function ConsultasPage() {
     setRoomError('');
   };
 
+  const anexarReceita = async (consultaId: string, file: File) => {
+    setUploadingId(consultaId);
+    setUploadMessage(null);
+    try {
+      await prontuarioApi.uploadAnexo(file, { consultaId });
+      setUploadMessage({ type: 'success', text: 'Prescrição médica anexada com segurança.' });
+    } catch (err: any) {
+      setUploadMessage({ type: 'error', text: err?.response?.data?.message ?? 'Não foi possível anexar o arquivo.' });
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   const mudaStatus = async (id: string, status: string) => {
     try {
       await consultasApi.updateStatus(id, status);
@@ -110,6 +126,12 @@ export function ConsultasPage() {
   return (
     <div>
       <h1>Minhas consultas {naoLidas > 0 && <span className="fc-badge">{naoLidas} nova(s)</span>}</h1>
+
+      {pagamento === 'sucesso' && <div className="fc-alert success">Pagamento recebido. A consulta aparecerá aqui assim que o Mercado Pago confirmar o webhook.</div>}
+      {pagamento === 'pendente' && <div className="fc-alert info">O pagamento está pendente. Atualizaremos a consulta quando o Mercado Pago confirmar.</div>}
+      {pagamento === 'falhou' && <div className="fc-alert error">O pagamento não foi concluído. Você pode tentar novamente escolhendo um novo horário.</div>}
+
+      {uploadMessage && <div className={`fc-alert ${uploadMessage.type}`}>{uploadMessage.text}</div>}
 
       {loading ? (
         <p>Carregando...</p>
@@ -158,6 +180,22 @@ export function ConsultasPage() {
                       <button className="fc-button" style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6 }} onClick={() => setMensagemAberta(c.id)}>
                         Mensagem
                       </button>
+                    )}
+                    {c.status !== 'CANCELADA' && c.status !== 'CONCLUIDA' && (
+                      <label className="fc-button" style={{ fontSize: 13, padding: '4px 10px', marginLeft: 6, cursor: 'pointer' }}>
+                        {uploadingId === c.id ? 'Enviando...' : 'Anexar receita'}
+                        <input
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png"
+                          hidden
+                          disabled={uploadingId === c.id}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            if (file) void anexarReceita(c.id, file);
+                          }}
+                        />
+                      </label>
                     )}
                     {(c.status === 'AGENDADA' || c.status === 'CONFIRMADA' || c.status === 'FARMACEUTICO_AGUARDANDO' || c.status === 'EM_ATENDIMENTO') && (
                       <button

@@ -12,6 +12,9 @@ import { MessagesModule } from './messages/messages.module';
 import { EmergencyModule } from './emergency/emergency.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { ProntuarioModule } from './prontuario/prontuario.module';
+import { StorageModule } from './storage/storage.module';
+import { PaymentsModule } from './payments/payments.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -28,6 +31,9 @@ import { HealthController } from './health.controller';
     EmergencyModule,
     SchedulerModule,
     CalendarModule,
+    ProntuarioModule,
+    StorageModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
 })

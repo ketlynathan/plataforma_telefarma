@@ -42,15 +42,30 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relações novas
-  consultas                Consulta[]
-  mensagensEnviadas        Message[]                 @relation("Remetente")
-  mensagensRecebidas       Message[]                 @relation("Destinatario")
-  emergenciasCliente       EmergencyRequest[]        @relation("ClienteEmergencia")
-  emergenciasFarmaceutico  EmergencyRequest[]        @relation("FarmaceuticoEmergencia")
-  disponibilidade          Availability[]
-  blockouts                AvailabilityBlockout[]
-  invitesCriados           Invite[]                  @relation("CriadoPor")
-  googleCalendarConnection GoogleCalendarConnection?
+  consultas                    Consulta[]
+  mensagensEnviadas            Message[]                 @relation("Remetente")
+  mensagensRecebidas           Message[]                 @relation("Destinatario")
+  emergenciasCliente           EmergencyRequest[]        @relation("ClienteEmergencia")
+  emergenciasFarmaceutico      EmergencyRequest[]        @relation("FarmaceuticoEmergencia")
+  disponibilidade              Availability[]
+  blockouts                    AvailabilityBlockout[]
+  invitesCriados               Invite[]                  @relation("CriadoPor")
+  googleCalendarConnection     GoogleCalendarConnection?
+  prontuario                   Prontuario?               @relation("PacienteProntuario")
+  prontuarioEntradas           ProntuarioEntrada[]       @relation("AutorProntuarioEntrada")
+  protocolosCriados            ProtocoloAtendimento[]    @relation("CriadorProtocolo")
+  versoesProtocolos            ProtocoloVersao[]         @relation("PublicadorProtocoloVersao")
+  consentimentos               Consentimento[]           @relation("PacienteConsentimento")
+  anexosClinicos               AnexoClinico[]            @relation("PacienteAnexoClinico")
+  anexosCriados                AnexoClinico[]            @relation("CriadorAnexoClinico")
+  prescricoesCriadas           PrescricaoFarmaceutica[]  @relation("FarmaceuticoPrescricao")
+  eventosAuditoria             AuditEvent[]              @relation("AtorAuditEvent")
+  grantsComoPaciente           AccessGrant[]             @relation("PacienteAccessGrant")
+  grantsComoFarmaceutico       AccessGrant[]             @relation("FarmaceuticoAccessGrant")
+  pagamentos                   Payment[]                 @relation("PacientePayment")
+  bookingHolds                 BookingHold[]             @relation("PacienteBookingHold")
+  bookingHoldsComoFarmaceutico BookingHold[]             @relation("FarmaceuticoBookingHold")
+  precosCriados                ProductPrice[]            @relation("CriadorProductPrice")
 
   @@map("usuarios")
 }
@@ -92,16 +107,304 @@ model Consulta {
   toleranciaMin        Int       @default(15) @map("tolerancia_min")
   googleCalendarId     String?   @map("google_calendar_id")
   googleEventId        String?   @map("google_event_id")
+  tipoAtendimento      String?   @map("tipo_atendimento")
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  farmaceutico User?     @relation(fields: [farmaceuticoId], references: [id])
-  mensagens    Message[]
+  farmaceutico       User?                    @relation(fields: [farmaceuticoId], references: [id])
+  mensagens          Message[]
+  prontuarioEntradas ProntuarioEntrada[]
+  anexosClinicos     AnexoClinico[]
+  prescricoes        PrescricaoFarmaceutica[]
+  pagamentos         Payment[]
 
   @@index([pacienteEmail])
   @@index([farmaceuticoId])
   @@index([googleEventId])
   @@map("consultas")
+}
+
+// Prontuário longitudinal compartilhado por paciente.
+model Prontuario {
+  id                  String    @id @default(uuid())
+  pacienteId          String    @unique @map("paciente_id")
+  status              String    @default("ATIVO")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+  ultimoAtendimentoEm DateTime? @map("ultimo_atendimento_em")
+
+  paciente User                @relation("PacienteProntuario", fields: [pacienteId], references: [id], onDelete: Cascade)
+  entradas ProntuarioEntrada[]
+
+  @@map("prontuarios")
+}
+
+// Evoluções e registros estruturados do atendimento. Registros finalizados não são apagados silenciosamente.
+model ProntuarioEntrada {
+  id             String    @id @default(uuid())
+  prontuarioId   String    @map("prontuario_id")
+  consultaId     String?   @map("consulta_id")
+  farmaceuticoId String    @map("farmaceutico_id")
+  assunto        String
+  tipo           String    @default("EVOLUCAO")
+  conteudo       String
+  conduta        String?
+  orientacoes    String?
+  encaminhamento String?
+  status         String    @default("RASCUNHO")
+  versao         Int       @default(1)
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  finalizadoEm   DateTime? @map("finalizado_em")
+
+  prontuario   Prontuario     @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+  consulta     Consulta?      @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+  farmaceutico User           @relation("AutorProntuarioEntrada", fields: [farmaceuticoId], references: [id])
+  anexos       AnexoClinico[]
+
+  @@index([prontuarioId, criadoEm])
+  @@index([consultaId])
+  @@index([farmaceuticoId])
+  @@map("prontuario_entradas")
+}
+
+// Protocolos podem evoluir por versão sem alterar atendimentos antigos.
+model ProtocoloAtendimento {
+  id           String   @id @default(uuid())
+  nome         String
+  descricao    String?
+  ativo        Boolean  @default(true)
+  criadoPor    String   @map("criado_por")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  criadoPorUser User              @relation("CriadorProtocolo", fields: [criadoPor], references: [id])
+  versoes       ProtocoloVersao[]
+
+  @@index([ativo])
+  @@map("protocolos_atendimento")
+}
+
+model ProtocoloVersao {
+  id           String    @id @default(uuid())
+  protocoloId  String    @map("protocolo_id")
+  versao       Int
+  camposJson   Json      @map("campos_json")
+  publicadoEm  DateTime? @map("publicado_em")
+  publicadoPor String?   @map("publicado_por")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+
+  protocolo        ProtocoloAtendimento @relation(fields: [protocoloId], references: [id], onDelete: Cascade)
+  publicadoPorUser User?                @relation("PublicadorProtocoloVersao", fields: [publicadoPor], references: [id], onDelete: SetNull)
+
+  @@unique([protocoloId, versao])
+  @@map("protocolos_versoes")
+}
+
+// Consentimentos/ciências versionados por finalidade.
+model Consentimento {
+  id              String    @id @default(uuid())
+  pacienteId      String    @map("paciente_id")
+  tipo            String
+  versaoDocumento String    @map("versao_documento")
+  finalidade      String
+  aceito          Boolean
+  aceitoEm        DateTime? @map("aceito_em")
+  revogadoEm      DateTime? @map("revogado_em")
+  evidenciaJson   Json?     @map("evidencia_json")
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+
+  paciente User @relation("PacienteConsentimento", fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  @@index([pacienteId, tipo, criadoEm])
+  @@map("consentimentos")
+}
+
+// Somente metadados ficam no banco; o arquivo deve ficar em armazenamento privado.
+model AnexoClinico {
+  id           String   @id @default(uuid())
+  pacienteId   String   @map("paciente_id")
+  consultaId   String?  @map("consulta_id")
+  entradaId    String?  @map("entrada_id")
+  nomeOriginal String   @map("nome_original")
+  mimeType     String   @map("mime_type")
+  tamanhoBytes Int      @map("tamanho_bytes")
+  storageKey   String   @unique @map("storage_key")
+  checksum     String?
+  criadoPor    String   @map("criado_por")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  paciente User               @relation("PacienteAnexoClinico", fields: [pacienteId], references: [id], onDelete: Cascade)
+  consulta Consulta?          @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+  entrada  ProntuarioEntrada? @relation(fields: [entradaId], references: [id], onDelete: SetNull)
+  criador  User               @relation("CriadorAnexoClinico", fields: [criadoPor], references: [id])
+
+  @@index([pacienteId, criadoEm])
+  @@index([consultaId])
+  @@index([entradaId])
+  @@map("anexos_clinicos")
+}
+
+// Prescrição farmacêutica versionada, com carimbo profissional descritivo.
+model PrescricaoFarmaceutica {
+  id              String   @id @default(uuid())
+  consultaId      String   @map("consulta_id")
+  farmaceuticoId  String   @map("farmaceutico_id")
+  conteudo        String
+  pdfKey          String?  @map("pdf_key")
+  carimboNome     String   @map("carimbo_nome")
+  carimboCrf      String   @map("carimbo_crf")
+  carimboDataHora DateTime @map("carimbo_data_hora")
+  versao          Int      @default(1)
+  status          String   @default("RASCUNHO")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  consulta     Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  farmaceutico User     @relation("FarmaceuticoPrescricao", fields: [farmaceuticoId], references: [id])
+
+  @@index([consultaId, versao])
+  @@index([farmaceuticoId])
+  @@map("prescricoes_farmaceuticas")
+}
+
+// Auditoria técnica sem conteúdo clínico ou segredos.
+model AuditEvent {
+  id            String   @id @default(uuid())
+  atorId        String?  @map("ator_id")
+  alvoTipo      String   @map("alvo_tipo")
+  alvoId        String?  @map("alvo_id")
+  acao          String
+  resultado     String
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  ipHash        String?  @map("ip_hash")
+  userAgent     String?  @map("user_agent")
+  metadadosJson Json?    @map("metadados_json")
+
+  ator User? @relation("AtorAuditEvent", fields: [atorId], references: [id], onDelete: SetNull)
+
+  @@index([alvoTipo, alvoId, criadoEm])
+  @@index([atorId, criadoEm])
+  @@map("eventos_auditoria")
+}
+
+// Vínculo de acesso ao prontuário, com origem e validade explícitas.
+model AccessGrant {
+  id             String    @id @default(uuid())
+  pacienteId     String    @map("paciente_id")
+  farmaceuticoId String    @map("farmaceutico_id")
+  origem         String
+  consultaId     String?   @map("consulta_id")
+  concedidoEm    DateTime  @default(now()) @map("concedido_em")
+  expiraEm       DateTime? @map("expira_em")
+  revogadoEm     DateTime? @map("revogado_em")
+
+  paciente     User @relation("PacienteAccessGrant", fields: [pacienteId], references: [id], onDelete: Cascade)
+  farmaceutico User @relation("FarmaceuticoAccessGrant", fields: [farmaceuticoId], references: [id], onDelete: Cascade)
+
+  @@unique([pacienteId, farmaceuticoId])
+  @@index([pacienteId, farmaceuticoId])
+  @@index([expiraEm, revogadoEm])
+  @@map("access_grants")
+}
+
+// Catálogo de serviços e preços versionado pelo administrador.
+model ProductPrice {
+  id              String   @id @default(uuid())
+  slug            String
+  nome            String
+  descricao       String?
+  tipoAtendimento String   @map("tipo_atendimento")
+  valorCentavos   Int      @map("valor_centavos")
+  versao          Int      @default(1)
+  ativo           Boolean  @default(true)
+  criadoPorId     String?  @map("criado_por_id")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  criadoPor    User?         @relation("CriadorProductPrice", fields: [criadoPorId], references: [id], onDelete: SetNull)
+  pagamentos   Payment[]
+  bookingHolds BookingHold[]
+
+  @@unique([slug, versao])
+  @@index([slug, ativo])
+  @@map("product_prices")
+}
+
+model BookingHold {
+  id             String    @id @default(uuid())
+  pacienteId     String    @map("paciente_id")
+  farmaceuticoId String    @map("farmaceutico_id")
+  productPriceId String    @map("product_price_id")
+  pacienteNome   String    @map("paciente_nome")
+  pacienteEmail  String    @map("paciente_email")
+  data           DateTime  @db.Date
+  hora           String
+  agendaTimezone String    @map("agenda_timezone")
+  agendadoEmUtc  DateTime  @map("agendado_em_utc") @db.Timestamptz(3)
+  observacoes    String?
+  status         String    @default("PENDENTE")
+  expiraEm       DateTime  @map("expira_em")
+  convertidoEm   DateTime? @map("convertido_em")
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+
+  paciente     User         @relation("PacienteBookingHold", fields: [pacienteId], references: [id], onDelete: Cascade)
+  farmaceutico User         @relation("FarmaceuticoBookingHold", fields: [farmaceuticoId], references: [id])
+  productPrice ProductPrice @relation(fields: [productPriceId], references: [id])
+  payment      Payment?
+
+  @@index([farmaceuticoId, agendadoEmUtc, status])
+  @@index([pacienteId, status])
+  @@index([expiraEm, status])
+  @@map("booking_holds")
+}
+
+model Payment {
+  id                   String    @id @default(uuid())
+  pacienteId           String    @map("paciente_id")
+  productPriceId       String    @map("product_price_id")
+  bookingHoldId        String?   @unique @map("booking_hold_id")
+  consultaId           String?   @map("consulta_id")
+  provider             String    @default("MERCADO_PAGO")
+  externalPaymentId    String?   @map("external_payment_id")
+  externalPreferenceId String?   @map("external_preference_id")
+  amountCentavos       Int       @map("amount_centavos")
+  status               String    @default("PENDENTE")
+  checkoutUrl          String?   @map("checkout_url")
+  expiresAt            DateTime? @map("expires_at")
+  approvedAt           DateTime? @map("approved_at")
+  refundedAt           DateTime? @map("refunded_at")
+  criadoEm             DateTime  @default(now()) @map("criado_em")
+  atualizadoEm         DateTime  @updatedAt @map("atualizado_em")
+
+  paciente      User                  @relation("PacientePayment", fields: [pacienteId], references: [id], onDelete: Cascade)
+  productPrice  ProductPrice          @relation(fields: [productPriceId], references: [id])
+  bookingHold   BookingHold?          @relation(fields: [bookingHoldId], references: [id], onDelete: SetNull)
+  consulta      Consulta?             @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+  webhookEvents PaymentWebhookEvent[]
+
+  @@unique([provider, externalPaymentId])
+  @@unique([provider, externalPreferenceId])
+  @@index([pacienteId, status])
+  @@index([consultaId])
+  @@map("payments")
+}
+
+model PaymentWebhookEvent {
+  id           String    @id @default(uuid())
+  provider     String
+  eventId      String
+  paymentId    String?
+  payloadHash  String    @map("payload_hash")
+  processadoEm DateTime? @map("processado_em")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([paymentId])
+  @@map("payment_webhook_events")
 }
 
 // Disponibilidade semanal do farmacêutico (itens 5-8)

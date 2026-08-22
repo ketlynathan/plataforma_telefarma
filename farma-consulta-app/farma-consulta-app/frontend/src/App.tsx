@@ -11,24 +11,31 @@ import { PerfilPage } from './pages/cliente/PerfilPage';
 import { FarmaceuticoDashboardPage } from './pages/farmaceutico/DashboardPage';
 import { AgendaPage } from './pages/farmaceutico/AgendaPage';
 import { PacientesPage } from './pages/farmaceutico/PacientesPage';
+import { ProntuarioPage } from './pages/cliente/ProntuarioPage';
 import { ConsultaOnlinePage } from './pages/farmaceutico/ConsultaOnlinePage';
 import { PerfilPage as FarmaceuticoPerfilPage } from './pages/farmaceutico/PerfilPage';
 import { RecuperarSenhaPage } from './pages/RecuperarSenhaPage';
 import { AceitarConvitePage } from './pages/AceitarConvitePage';
 import { PainelEmergencia } from './components/PainelEmergencia';
+import { PaymentsAdminPage } from './pages/admin/PaymentsAdminPage';
 
 const CLIENTE_NAV = [
   { label: 'Dashboard', path: '/cliente' },
   { label: 'Agendar consulta', path: '/cliente/agendar' },
   { label: 'Minhas consultas', path: '/cliente/consultas' },
+  { label: 'Meu prontuário', path: '/cliente/prontuario' },
   { label: 'Perfil', path: '/cliente/perfil' },
+];
+
+const ADMIN_NAV = [
+  { label: 'Preços e pagamentos', path: '/admin' },
 ];
 
 const FARMACEUTICO_NAV = [
   { label: 'Dashboard', path: '/farmaceutico' },
   { label: 'Agenda', path: '/farmaceutico/agenda' },
   { label: 'Consulta online', path: '/farmaceutico/consulta-online' },
-  { label: 'Pacientes', path: '/farmaceutico/pacientes' },
+  { label: 'Pacientes e prontuário', path: '/farmaceutico/pacientes' },
   { label: 'Perfil', path: '/farmaceutico/perfil' },
 ];
 
@@ -37,6 +44,16 @@ function ClienteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="fc-shell">
       <TopNav options={CLIENTE_NAV} activePath={location.pathname} />
+      {children}
+    </div>
+  );
+}
+
+function AdminLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  return (
+    <div className="fc-shell">
+      <TopNav options={ADMIN_NAV} activePath={location.pathname} />
       {children}
     </div>
   );
@@ -56,7 +73,7 @@ function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <div className="fc-shell">Carregando...</div>;
   if (!user) return <HomePage />;
-  return <Navigate to={user.tipo === 'cliente' ? '/cliente' : '/farmaceutico'} replace />;
+  return <Navigate to={user.tipo === 'cliente' ? '/cliente' : user.tipo === 'admin' ? '/admin' : '/farmaceutico'} replace />;
 }
 
 function AppRoutes() {
@@ -92,10 +109,27 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/cliente/prontuario"
+        element={
+          <ProtectedRoute tipo="cliente">
+            <ClienteLayout><ProntuarioPage /></ClienteLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/cliente/perfil"
         element={
           <ProtectedRoute tipo="cliente">
             <ClienteLayout><PerfilPage /></ClienteLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute tipo="admin">
+            <AdminLayout><PaymentsAdminPage /></AdminLayout>
           </ProtectedRoute>
         }
       />

@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, UserTipo } from '../context/AuthContext';
+import { useAuth, PublicUserTipo } from '../context/AuthContext';
 import { APP_TITLE } from '../config';
 
 export function LoginPage() {
@@ -20,7 +20,7 @@ export function LoginPage() {
   const [regEmail, setRegEmail] = useState('');
   const [regSenha, setRegSenha] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [tipo, setTipo] = useState<UserTipo>('cliente');
+  const [tipo, setTipo] = useState<PublicUserTipo>('cliente');
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -121,7 +121,7 @@ export function LoginPage() {
             </div>
             <div className="fc-field">
               <label>Perfil</label>
-              <select className="fc-select" value={tipo} onChange={(e) => setTipo(e.target.value as UserTipo)}>
+              <select className="fc-select" value={tipo} onChange={(e) => setTipo(e.target.value as PublicUserTipo)}>
                 <option value="cliente">cliente</option>
                 <option value="farmaceutico">farmaceutico</option>
               </select>

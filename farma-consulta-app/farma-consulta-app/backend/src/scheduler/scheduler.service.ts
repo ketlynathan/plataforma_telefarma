@@ -4,6 +4,7 @@ import { EmergencyService } from '../emergency/emergency.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_TIME_ZONE, dateOnlyToUtc, isoDateFromDateOnly, isValidTimeZone, todayIso, zonedDateTimeToUtc } from '../common/timezone';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class SchedulerService {
@@ -22,6 +23,7 @@ export class SchedulerService {
     private readonly emergency: EmergencyService,
     private readonly mail: MailService,
     private readonly prisma: PrismaService,
+    private readonly payments: PaymentsService,
   ) {}
 
   /**
@@ -32,6 +34,7 @@ export class SchedulerService {
   async expirarEmergencias() {
     await this.emergency.expirarTodas();
     await this.marcarAtendimentosSemPaciente();
+    await this.payments.expireBookingHolds();
   }
 
   /**
